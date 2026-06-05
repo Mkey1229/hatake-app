@@ -115,7 +115,17 @@ function makeDemo(){
 
 export default function App(){
   const[zone,setZone]=useState(()=>{try{return localStorage.getItem("hz")||"";}catch{return"";}});
-  const[fields,setFields]=useState(makeDemo);
+  const[fields,setFields]=useState(()=>{
+    try{
+      const saved=localStorage.getItem("hatake_fields");
+      if(saved){
+        const parsed=JSON.parse(saved);
+        // Set を復元
+        return parsed.map(f=>({...f,vPaths:new Set(f.vPaths||[]),hPaths:new Set(f.hPaths||[])}));
+      }
+    }catch(e){}
+    return makeDemo();
+  });
   const[screen,setScreen]=useState(()=>{try{return localStorage.getItem("hz")?"home":"zone";}catch{return"zone";}});
   const[fieldId,setFieldId]=useState(null);const[bedId,setBedId]=useState(null);
   const[form,setForm]=useState({});const[popup,setPopup]=useState(null);
@@ -127,7 +137,15 @@ export default function App(){
   const popField=popup?fields.find(f=>f.id===popup.fid)||null:null;
   const popBed=popField?.beds.find(b=>b.id===popup.bid)||null;
   const zoneObj=ZONES.find(z=>z.key===zone);
-  const upd=fn=>setFields(fn);
+  const upd=fn=>setFields(prev=>{
+    const next=fn(prev);
+    try{
+      // SetをArrayに変換して保存
+      const toSave=next.map(f=>({...f,vPaths:[...f.vPaths],hPaths:[...f.hPaths]}));
+      localStorage.setItem("hatake_fields",JSON.stringify(toSave));
+    }catch(e){}
+    return next;
+  });
 
   const goHome=()=>{setScreen("home");setFieldId(null);setBedId(null);setCopied(null);setEditNotes(false);setPopup(null);};
   const openField=f=>{setEditNotes(false);setPopup(null);if(f.pw){setPwInput("");setPwErr(false);setFieldId(f.id);setScreen("auth");}else{setFieldId(f.id);setScreen("field");}};
@@ -443,7 +461,7 @@ function FieldMap({field,copied,onBedTap,onBedLongPress,onBedSwipePaste,onVGap,o
 
   return(
     <div onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}
-      style={{overflowX:"auto",WebkitUserSelect:"none",userSelect:"none",touchAction:copied?"none":"pan-y",paddingBottom:4}}>
+      style={{overflowX:"auto",WebkitUserSelect:"none",userSelect:"none",touchAction:copied?"none":"pan-y pinch-zoom",paddingBottom:4}}>
       <div style={{textAlign:"center",fontSize:11,color:"#aaa",marginBottom:4}}>↑ 北</div>
       <div ref={containerRef} style={{position:"relative",width:totalW,height:totalH,margin:"0 auto"}}>
         {cells}
@@ -526,7 +544,7 @@ const S={
   ttl:{fontSize:20,fontWeight:700,letterSpacing:1},
   bkBtn:{background:"rgba(255,255,255,0.2)",border:"none",color:"white",fontSize:18,borderRadius:10,width:36,height:36,cursor:"pointer",flexShrink:0},
   hBtn:{background:"rgba(255,255,255,0.22)",border:"1.5px solid rgba(255,255,255,0.5)",color:"white",borderRadius:12,padding:"5px 12px",fontSize:14,fontWeight:700,cursor:"pointer"},
-  body:{flex:1,overflowY:"auto",padding:"14px 14px 28px"},
+  body:{flex:1,overflowY:"auto",padding:"14px 14px 80px"},
   card:{background:"white",borderRadius:16,padding:14,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,0.07)",border:"1.5px solid #f0ede8",cursor:"pointer"},
   zoneCard:{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:"white",borderRadius:14,border:"1.5px solid #e8e8e0",marginBottom:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"},
   clipBar:{background:"#eaf4e8",borderBottom:"1px solid #c8e6c0",padding:"8px 16px",display:"flex",alignItems:"center",gap:8},
