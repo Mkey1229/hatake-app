@@ -311,19 +311,11 @@ function FieldMap({field,copied,onBedTap,onBedLongPress,onBedSwipePaste,onVGap,o
   const G=5,P=9;
   const LABEL=20;
 
-  // 座標計算
+  // 座標計算（通路あり/なし関係なく常にP幅で固定→グリッドが動かない）
   const colX=[];colX[0]=LABEL;
-  for(let c=0;c<C;c++){
-    let hasVPath=false;
-    for(let r=0;r<R;r++){if(field.vPaths.has(`${r}-${c+1}`)){hasVPath=true;break;}}
-    colX[c+1]=colX[c]+W+(hasVPath?P:G);
-  }
+  for(let c=0;c<C;c++){colX[c+1]=colX[c]+W+P;}
   const rowY=[];rowY[0]=0;
-  for(let r=0;r<R;r++){
-    let hasHPath=false;
-    for(let c=0;c<C;c++){if(field.hPaths.has(`${r}-${c}`)){hasHPath=true;break;}}
-    rowY[r+1]=rowY[r]+W+(hasHPath?P:G);
-  }
+  for(let r=0;r<R;r++){rowY[r+1]=rowY[r]+W+P;}
   const totalW=colX[C],totalH=rowY[R];
 
   function joined(r1,c1,r2,c2){
@@ -419,28 +411,36 @@ function FieldMap({field,copied,onBedTap,onBedLongPress,onBedSwipePaste,onVGap,o
         </div>
       );
 
-      // 右縦ギャップ
+      // 右縦ギャップ（P幅固定）
       if(c<C-1){
-        const gx=x+W,gw=colX[c+1]-colX[c]-W;
+        const gx=x+W,gw=P;
         const isVP=field.vPaths.has(`${r}-${c+1}`);
         const gapBg=isVP?SOIL_V:jR?bg:"transparent";
         newGapRects.push({x:gx,y,w:gw,h:W,type:"v",r,c:c+1});
-        cells.push(<div key={"vg"+r+","+c} style={{position:"absolute",left:gx,top:y,width:gw,height:W,background:gapBg}}/>);
+        cells.push(
+          <div key={"vg"+r+","+c} style={{position:"absolute",left:gx,top:y,width:gw,height:W,background:gapBg,display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {!isVP&&!jR&&<div style={{width:1,height:"70%",background:"rgba(0,0,0,0.1)",borderRadius:1,pointerEvents:"none"}}/>}
+          </div>
+        );
       }
 
-      // 下横ギャップ
+      // 下横ギャップ（P高さ固定）
       if(r<R-1){
-        const gy=y+W,gh=rowY[r+1]-rowY[r]-W;
+        const gy=y+W,gh=P;
         const isHP=field.hPaths.has(`${r}-${c}`);
         const gapBg=isHP?SOIL_H:jD?bg:"transparent";
         newGapRects.push({x,y:gy,w:W,h:gh,type:"h",r,c});
-        cells.push(<div key={"hg"+r+","+c} style={{position:"absolute",left:x,top:gy,width:W,height:gh,background:gapBg}}/>);
+        cells.push(
+          <div key={"hg"+r+","+c} style={{position:"absolute",left:x,top:gy,width:W,height:gh,background:gapBg,display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {!isHP&&!jD&&<div style={{width:"70%",height:1,background:"rgba(0,0,0,0.1)",borderRadius:1,pointerEvents:"none"}}/>}
+          </div>
+        );
       }
 
-      // 右下交差
+      // 右下交差（P×P固定）
       if(c<C-1&&r<R-1){
         const cx2=x+W,cy2=y+W;
-        const cw=colX[c+1]-colX[c]-W,ch=rowY[r+1]-rowY[r]-W;
+        const cw=P,ch=P;
         const isVP=field.vPaths.has(`${r}-${c+1}`)||field.vPaths.has(`${r+1}-${c+1}`);
         const isHP=field.hPaths.has(`${r}-${c}`)||field.hPaths.has(`${r}-${c+1}`);
         const jRt=joined(r,c,r,c+1),jRb=joined(r+1,c,r+1,c+1);
@@ -474,9 +474,9 @@ function FieldMap({field,copied,onBedTap,onBedLongPress,onBedSwipePaste,onVGap,o
 function MiniMap({field}){
   const C=field.cols,R=field.rows,W=16,G=3,P=5;
   const colX=[];colX[0]=0;
-  for(let c=0;c<C;c++){let h=false;for(let r=0;r<R;r++){if(field.vPaths.has(`${r}-${c+1}`)){h=true;break;}}colX[c+1]=colX[c]+W+(h?P:G);}
+  for(let c=0;c<C;c++){colX[c+1]=colX[c]+W+P;}
   const rowY=[];rowY[0]=0;
-  for(let r=0;r<R;r++){let h=false;for(let c=0;c<C;c++){if(field.hPaths.has(`${r}-${c}`)){h=true;break;}}rowY[r+1]=rowY[r]+W+(h?P:G);}
+  for(let r=0;r<R;r++){rowY[r+1]=rowY[r]+W+P;}
   const cells=[];
   for(let r=0;r<R;r++){for(let c=0;c<C;c++){
     const bed=field.beds.find(b=>b.row===r&&b.col===c);
@@ -544,7 +544,7 @@ const S={
   ttl:{fontSize:20,fontWeight:700,letterSpacing:1},
   bkBtn:{background:"rgba(255,255,255,0.2)",border:"none",color:"white",fontSize:18,borderRadius:10,width:36,height:36,cursor:"pointer",flexShrink:0},
   hBtn:{background:"rgba(255,255,255,0.22)",border:"1.5px solid rgba(255,255,255,0.5)",color:"white",borderRadius:12,padding:"5px 12px",fontSize:14,fontWeight:700,cursor:"pointer"},
-  body:{flex:1,overflowY:"auto",padding:"14px 14px 80px"},
+  body:{flex:1,overflowY:"auto",padding:"14px 14px 120px"},
   card:{background:"white",borderRadius:16,padding:14,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,0.07)",border:"1.5px solid #f0ede8",cursor:"pointer"},
   zoneCard:{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:"white",borderRadius:14,border:"1.5px solid #e8e8e0",marginBottom:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"},
   clipBar:{background:"#eaf4e8",borderBottom:"1px solid #c8e6c0",padding:"8px 16px",display:"flex",alignItems:"center",gap:8},
