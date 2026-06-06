@@ -259,7 +259,7 @@ export default function App(){
           {est&&<div style={S.estBox}>🗓 収穫予定：<b>{est}</b></div>}
           <Label>実際の収穫日</Label><input style={S.input} type="date" value={form.harv} onChange={e=>setForm(f=>({...f,harv:e.target.value}))}/>
           <Label>メモ</Label><textarea style={{...S.input,height:64,resize:"none"}} value={form.memo} onChange={e=>setForm(f=>({...f,memo:e.target.value}))}/>
-          <Label>写真（有料版：最大5枚）</Label><MultiPhotoPicker photos={form.photos||[]} onChange={photos=>setForm(f=>({...f,photos}))}/>
+          <Label>写真（最大5枚）</Label><MultiPhotoPicker photos={form.photos||[]} onChange={photos=>setForm(f=>({...f,photos}))}/>
         </>}
         <button style={S.btnP} onClick={saveBed}>保存する</button>
         {(curBed.hist||[]).length>0&&<div style={{marginTop:20}}><div style={{fontSize:13,fontWeight:700,color:"#666",borderTop:"1px solid #eee",paddingTop:12,marginBottom:8}}>📜 作付け履歴</div>{curBed.hist.map((h,i)=><div key={i} style={{display:"flex",gap:8,padding:"8px 0",borderBottom:i<curBed.hist.length-1?"1px solid #f5f0ea":"none"}}><div style={{width:10,height:10,borderRadius:"50%",background:getColor(h.veggie),flexShrink:0,marginTop:3}}/><div><div style={{fontWeight:700,fontSize:13,color:"#2d4a1e"}}>{h.veggie} <span style={{fontSize:11,fontWeight:400,color:"#aaa"}}>{h.ft==="sd"?"🌰":"🌿"}</span></div><div style={{fontSize:11,color:"#999"}}>🌱{h.pd}{h.harv?" ✅"+h.harv:""}</div>{h.memo&&<div style={{fontSize:11,color:"#bbb",fontStyle:"italic"}}>📝{h.memo}</div>}</div></div>)}</div>}
@@ -545,7 +545,7 @@ const S={
   ttl:{fontSize:20,fontWeight:700,letterSpacing:1},
   bkBtn:{background:"rgba(255,255,255,0.2)",border:"none",color:"white",fontSize:18,borderRadius:10,width:36,height:36,cursor:"pointer",flexShrink:0},
   hBtn:{background:"rgba(255,255,255,0.22)",border:"1.5px solid rgba(255,255,255,0.5)",color:"white",borderRadius:12,padding:"5px 12px",fontSize:14,fontWeight:700,cursor:"pointer"},
-  body:{flex:1,overflowY:"auto",overflowX:"hidden",padding:"14px 14px 120px",WebkitOverflowScrolling:"touch"},
+  body:{flex:1,overflowY:"auto",overflowX:"hidden",padding:"14px 14px 200px",WebkitOverflowScrolling:"touch"},
   card:{background:"white",borderRadius:16,padding:14,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,0.07)",border:"1.5px solid #f0ede8",cursor:"pointer"},
   zoneCard:{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:"white",borderRadius:14,border:"1.5px solid #e8e8e0",marginBottom:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"},
   clipBar:{background:"#eaf4e8",borderBottom:"1px solid #c8e6c0",padding:"8px 16px",display:"flex",alignItems:"center",gap:8},
