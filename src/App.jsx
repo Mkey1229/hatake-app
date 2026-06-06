@@ -545,7 +545,7 @@ const S={
   ttl:{fontSize:20,fontWeight:700,letterSpacing:1},
   bkBtn:{background:"rgba(255,255,255,0.2)",border:"none",color:"white",fontSize:18,borderRadius:10,width:36,height:36,cursor:"pointer",flexShrink:0},
   hBtn:{background:"rgba(255,255,255,0.22)",border:"1.5px solid rgba(255,255,255,0.5)",color:"white",borderRadius:12,padding:"5px 12px",fontSize:14,fontWeight:700,cursor:"pointer"},
-  body:{flex:1,overflowY:"auto",overflowX:"hidden",padding:"14px 14px 200px",WebkitOverflowScrolling:"touch"},
+  body:{flex:1,overflowY:"auto",overflowX:"hidden",padding:"14px 14px 300px",WebkitOverflowScrolling:"touch"},
   card:{background:"white",borderRadius:16,padding:14,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,0.07)",border:"1.5px solid #f0ede8",cursor:"pointer"},
   zoneCard:{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:"white",borderRadius:14,border:"1.5px solid #e8e8e0",marginBottom:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"},
   clipBar:{background:"#eaf4e8",borderBottom:"1px solid #c8e6c0",padding:"8px 16px",display:"flex",alignItems:"center",gap:8},
