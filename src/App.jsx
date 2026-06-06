@@ -90,7 +90,7 @@ function getCompanion(field,bed){
          bads:cp.bad.filter(([n])=>adj.includes(n)).map(([n,r])=>({veggie:n,reason:r}))};
 }
 
-let _id=100;const uid=()=>String(_id++);
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 function makeBed(fid,r,c){return{id:`${fid}-${r}-${c}`,row:r,col:c,veggie:"空き",ft:"ld",pd:"",est:"",harv:"",memo:"",photos:[],hist:[]};}
 function makeField(name,rows,cols,pw){
   const id=uid();const beds=[];
@@ -301,6 +301,7 @@ function BedPopup({bed,field,zone,zoneObj,onEdit,onCopy,onClose}){
       {(bed.hist||[]).length>0&&<div style={{marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:"#666",marginBottom:6}}>📜 作付け履歴</div>{bed.hist.map((h,i)=><div key={i} style={{display:"flex",gap:8,padding:"6px 0",borderBottom:i<bed.hist.length-1?"1px solid #f0ede8":"none"}}><div style={{width:8,height:8,borderRadius:"50%",background:getColor(h.veggie),flexShrink:0,marginTop:4}}/><div><div style={{fontSize:12,fontWeight:700,color:"#2d4a1e"}}>{h.veggie} <span style={{fontWeight:400,color:"#aaa"}}>{h.ft==="sd"?"🌰":"🌿"}</span></div><div style={{fontSize:11,color:"#999"}}>🌱{h.pd}{h.harv?" ✅"+h.harv:""}</div></div></div>)}</div>}
     </>}
     <div style={{display:"flex",gap:8,marginTop:4}}><button style={{...S.btnP,flex:1,marginTop:0}} onClick={onEdit}>{isEmpty?"🌱 野菜を登録":"✏️ 編集する"}</button>{!isEmpty&&<button style={{flex:1,background:"#e8f5e0",border:"1.5px solid #b5d5a0",borderRadius:14,padding:"14px",fontSize:14,fontWeight:700,color:"#2d6a20",cursor:"pointer"}} onClick={onCopy}>📋 コピー</button>}</div>
+
   </div></div>);
 }
 
@@ -530,7 +531,7 @@ function MultiPhotoPicker({photos,onChange}){
 }
 
 function Shell({title,sub,back,right,children}){
-  return(<div style={S.root}><style>{`.happ,.happ button,.happ div,.happ span{-webkit-touch-callout:none!important;-webkit-user-select:none!important;user-select:none!important;}.happ input,.happ textarea,.happ select{-webkit-user-select:text!important;user-select:text!important;}`}</style><div style={S.phone} className="happ"><div style={S.hdr}><div style={{display:"flex",alignItems:"center",gap:8,paddingBottom:sub?6:0}}>{back&&<button style={S.bkBtn} onClick={back}>←</button>}<div style={{flex:1}}><div style={S.ttl}>{title}</div>{sub&&<div style={{fontSize:12,opacity:0.8,marginTop:2}}>{sub}</div>}</div>{right}</div></div><div style={S.body}>{children}</div></div></div>);
+  return(<div style={S.root}><style>{`.happ,.happ button,.happ div,.happ span{-webkit-touch-callout:none!important;-webkit-user-select:none!important;user-select:none!important;}.happ input,.happ textarea,.happ select{-webkit-user-select:text!important;user-select:text!important;}`}</style><div style={S.phone} className="happ"><div style={S.hdr}><div style={{display:"flex",alignItems:"center",gap:8,paddingBottom:sub?6:0}}>{back&&<button style={S.bkBtn} onClick={back}>←</button>}<div style={{flex:1}}><div style={S.ttl}>{title}</div>{sub&&<div style={{fontSize:12,opacity:0.8,marginTop:2}}>{sub}</div>}</div>{right}</div></div><div style={S.body} onTouchMove={e=>e.stopPropagation()}>{children}</div></div></div>);
 }
 function Label({children}){return(<div style={{fontSize:12,fontWeight:600,color:"#666",marginTop:12,marginBottom:4}}>{children}</div>);}
 function Chip({l,c,bg}){return(<span style={{fontSize:11,fontWeight:700,borderRadius:10,padding:"2px 9px",color:c,background:bg}}>{l}</span>);}
@@ -544,7 +545,7 @@ const S={
   ttl:{fontSize:20,fontWeight:700,letterSpacing:1},
   bkBtn:{background:"rgba(255,255,255,0.2)",border:"none",color:"white",fontSize:18,borderRadius:10,width:36,height:36,cursor:"pointer",flexShrink:0},
   hBtn:{background:"rgba(255,255,255,0.22)",border:"1.5px solid rgba(255,255,255,0.5)",color:"white",borderRadius:12,padding:"5px 12px",fontSize:14,fontWeight:700,cursor:"pointer"},
-  body:{flex:1,overflowY:"auto",padding:"14px 14px 120px"},
+  body:{flex:1,overflowY:"auto",overflowX:"hidden",padding:"14px 14px 120px",WebkitOverflowScrolling:"touch"},
   card:{background:"white",borderRadius:16,padding:14,marginBottom:14,boxShadow:"0 2px 10px rgba(0,0,0,0.07)",border:"1.5px solid #f0ede8",cursor:"pointer"},
   zoneCard:{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:"white",borderRadius:14,border:"1.5px solid #e8e8e0",marginBottom:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"},
   clipBar:{background:"#eaf4e8",borderBottom:"1px solid #c8e6c0",padding:"8px 16px",display:"flex",alignItems:"center",gap:8},
