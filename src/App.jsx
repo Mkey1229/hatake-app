@@ -1,39 +1,59 @@
+
+// ── グループ管理 ───────────────────────────────────────────────
+// 同じ野菜・同じ植えた日の畝をグループとして扱う
+function getGroupKey(bed){
+  if(bed.veggie==="空き"||!bed.pd) return null;
+  return bed.veggie+"__"+bed.pd;
+}
+function getGroup(field, bed){
+  const key=getGroupKey(bed);
+  if(!key) return [bed];
+  return field.beds.filter(b=>getGroupKey(b)===key);
+}
+function isGroupLeader(field, bed){
+  // グループの中で row,col が最小の畝がリーダー
+  const group=getGroup(field,bed);
+  if(group.length<=1) return false;
+  const leader=group.reduce((a,b)=>a.row<b.row||(a.row===b.row&&a.col<b.col)?a:b);
+  return leader.id===bed.id;
+}
+
 import { useState, useRef, useEffect, useMemo } from "react";
 
 const VG=[
   {name:"空き",color:"#e8e8e0",family:null,rest:0,sd:null,ld:null,sow:null},
-  {name:"トマト",color:"#f5a89a",family:"ナス科",rest:3,sd:90,ld:75,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
-  {name:"ミニトマト",color:"#f5c49a",family:"ナス科",rest:3,sd:80,ld:65,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
-  {name:"なす",color:"#c9a8e0",family:"ナス科",rest:3,sd:90,ld:70,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
-  {name:"ピーマン",color:"#90d4a8",family:"ナス科",rest:3,sd:100,ld:80,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"パプリカ",color:"#f5b8a0",family:"ナス科",rest:3,sd:110,ld:90,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"じゃがいも",color:"#f7cc80",family:"ナス科",rest:3,sd:90,ld:90,sow:{cold:[4,5],warm:[3,4],hot:[2,3]}},
-  {name:"きゅうり",color:"#80cfc0",family:"ウリ科",rest:2,sd:65,ld:55,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
-  {name:"スイカ",color:"#f5a0a0",family:"ウリ科",rest:3,sd:100,ld:90,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"メロン",color:"#f7e080",family:"ウリ科",rest:3,sd:110,ld:100,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"ズッキーニ",color:"#80dcc8",family:"ウリ科",rest:2,sd:55,ld:50,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
-  {name:"かぼちゃ",color:"#f0d878",family:"ウリ科",rest:2,sd:110,ld:100,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"だいこん",color:"#dde3e7",family:"アブラナ科",rest:1,sd:60,ld:null,sow:{cold:[8,9],warm:[8,10],hot:[9,10]}},
-  {name:"キャベツ",color:"#b4ecc8",family:"アブラナ科",rest:1,sd:90,ld:70,sow:{cold:[7,8],warm:[7,9],hot:[8,9]}},
-  {name:"ブロッコリー",color:"#80b898",family:"アブラナ科",rest:1,sd:90,ld:70,sow:{cold:[7,8],warm:[7,9],hot:[8,9]}},
-  {name:"白菜",color:"#c0edcf",family:"アブラナ科",rest:1,sd:80,ld:60,sow:{cold:[8,8],warm:[8,9],hot:[9,9]}},
-  {name:"小松菜",color:"#96e0b0",family:"アブラナ科",rest:1,sd:40,ld:null,sow:{cold:[4,9],warm:[3,10],hot:[2,11]}},
-  {name:"水菜",color:"#a0ddb8",family:"アブラナ科",rest:1,sd:45,ld:null,sow:{cold:[4,9],warm:[3,10],hot:[2,11]}},
-  {name:"にんじん",color:"#f5be88",family:"セリ科",rest:1,sd:100,ld:null,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"ほうれん草",color:"#80dcc8",family:"アカザ科",rest:1,sd:45,ld:null,sow:{cold:[8,9],warm:[9,10],hot:[10,11]}},
-  {name:"レタス",color:"#b0ddc0",family:"キク科",rest:1,sd:60,ld:50,sow:{cold:[4,5],warm:[3,5],hot:[2,4]}},
-  {name:"サニーレタス",color:"#f0c8b8",family:"キク科",rest:1,sd:55,ld:45,sow:{cold:[4,5],warm:[3,5],hot:[2,4]}},
-  {name:"えだまめ",color:"#a0cc88",family:"マメ科",rest:1,sd:80,ld:null,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"いんげん",color:"#d4ec98",family:"マメ科",rest:1,sd:55,ld:null,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"ねぎ",color:"#c0a0d8",family:"ユリ科",rest:1,sd:120,ld:90,sow:{cold:[3,4],warm:[3,4],hot:[2,3]}},
-  {name:"たまねぎ",color:"#f0d870",family:"ユリ科",rest:1,sd:180,ld:150,sow:{cold:[9,9],warm:[9,10],hot:[10,10]}},
-  {name:"さつまいも",color:"#f0a870",family:"ヒルガオ科",rest:3,sd:130,ld:120,sow:{cold:[6,6],warm:[5,6],hot:[4,5]}},
-  {name:"とうもろこし",color:"#f7de88",family:"イネ科",rest:1,sd:85,ld:null,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"オクラ",color:"#a0d4a0",family:"アオイ科",rest:1,sd:60,ld:50,sow:{cold:[6,6],warm:[5,6],hot:[4,5]}},
-  {name:"いちご",color:"#f5a0c8",family:"バラ科",rest:2,sd:null,ld:60,sow:{cold:[9,10],warm:[9,10],hot:[10,11]}},
-  {name:"バジル",color:"#a0d8b0",family:"シソ科",rest:1,sd:50,ld:40,sow:{cold:[5,6],warm:[4,6],hot:[3,5]}},
-  {name:"シソ",color:"#c9a8e0",family:"シソ科",rest:1,sd:60,ld:null,sow:{cold:[5,6],warm:[4,6],hot:[3,5]}},
-  {name:"その他",color:"#c0c8ca",family:null,rest:0,sd:null,ld:null,sow:null},
+  {name:"トマト",color:"#ffc5b8",family:"ナス科",rest:3,sd:90,ld:75,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
+  {name:"ミニトマト",color:"#ffd5c0",family:"ナス科",rest:3,sd:80,ld:65,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
+  {name:"なす",color:"#d8b8f0",family:"ナス科",rest:3,sd:90,ld:70,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
+  {name:"ピーマン",color:"#b8f0b8",family:"ナス科",rest:3,sd:100,ld:80,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
+  {name:"パプリカ",color:"#ffcca0",family:"ナス科",rest:3,sd:110,ld:90,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
+  {name:"じゃがいも",color:"#ffe0a0",family:"ナス科",rest:3,sd:90,ld:90,sow:{cold:[4,5],warm:[3,4],hot:[2,3]}},
+  {name:"きゅうり",color:"#a8e8d8",family:"ウリ科",rest:2,sd:65,ld:55,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
+  {name:"スイカ",color:"#ffb8b8",family:"ウリ科",rest:3,sd:100,ld:90,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
+  {name:"メロン",color:"#c8f0e8",family:"ウリ科",rest:3,sd:110,ld:100,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
+  {name:"ズッキーニ",color:"#a0ddd0",family:"ウリ科",rest:2,sd:55,ld:50,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
+  {name:"かぼちゃ",color:"#ffe0b0",family:"ウリ科",rest:2,sd:110,ld:100,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
+  {name:"だいこん",color:"#f0f0f0",family:"アブラナ科",rest:1,sd:60,ld:null,sow:{cold:[8,9],warm:[8,10],hot:[9,10]}},
+  {name:"キャベツ",color:"#b8f0c8",family:"アブラナ科",rest:1,sd:90,ld:70,sow:{cold:[7,8],warm:[7,9],hot:[8,9]}},
+  {name:"ブロッコリー",color:"#90d8a8",family:"アブラナ科",rest:1,sd:90,ld:70,sow:{cold:[7,8],warm:[7,9],hot:[8,9]}},
+  {name:"白菜",color:"#d8f5e0",family:"アブラナ科",rest:1,sd:80,ld:60,sow:{cold:[8,8],warm:[8,9],hot:[9,9]}},
+  {name:"小松菜",color:"#a8e8b8",family:"アブラナ科",rest:1,sd:40,ld:null,sow:{cold:[4,9],warm:[3,10],hot:[2,11]}},
+  {name:"水菜",color:"#c8f5d8",family:"アブラナ科",rest:1,sd:45,ld:null,sow:{cold:[4,9],warm:[3,10],hot:[2,11]}},
+  {name:"にんじん",color:"#ffcc88",family:"セリ科",rest:1,sd:100,ld:null,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
+  {name:"ほうれん草",color:"#88d8b0",family:"アカザ科",rest:1,sd:45,ld:null,sow:{cold:[8,9],warm:[9,10],hot:[10,11]}},
+  {name:"レタス",color:"#e8f8d0",family:"キク科",rest:1,sd:60,ld:50,sow:{cold:[4,5],warm:[3,5],hot:[2,4]}},
+  {name:"サニーレタス",color:"#ffd8b8",family:"キク科",rest:1,sd:55,ld:45,sow:{cold:[4,5],warm:[3,5],hot:[2,4]}},
+  {name:"えだまめ",color:"#d0f0a0",family:"マメ科",rest:1,sd:80,ld:null,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
+  {name:"いんげん",color:"#e8f8b0",family:"マメ科",rest:1,sd:55,ld:null,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
+  {name:"ねぎ",color:"#e8f5d0",family:"ユリ科",rest:1,sd:120,ld:90,sow:{cold:[3,4],warm:[3,4],hot:[2,3]}},
+  {name:"たまねぎ",color:"#e0d0f8",family:"ユリ科",rest:1,sd:180,ld:150,sow:{cold:[9,9],warm:[9,10],hot:[10,10]}},
+  {name:"さつまいも",color:"#ffc898",family:"ヒルガオ科",rest:3,sd:130,ld:120,sow:{cold:[6,6],warm:[5,6],hot:[4,5]}},
+  {name:"とうもろこし",color:"#fff0a8",family:"イネ科",rest:1,sd:85,ld:null,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
+  {name:"オクラ",color:"#b8e8b0",family:"アオイ科",rest:1,sd:60,ld:50,sow:{cold:[6,6],warm:[5,6],hot:[4,5]}},
+  {name:"いちご",color:"#ffc0d8",family:"バラ科",rest:2,sd:null,ld:60,sow:{cold:[9,10],warm:[9,10],hot:[10,11]}},
+  {name:"バジル",color:"#b0f0c8",family:"シソ科",rest:1,sd:50,ld:40,sow:{cold:[5,6],warm:[4,6],hot:[3,5]}},
+  {name:"シソ",color:"#d8b8f0",family:"シソ科",rest:1,sd:60,ld:null,sow:{cold:[5,6],warm:[4,6],hot:[3,5]}},
+  {name:"その他",color:"#e0e5e8",family:null,rest:0,sd:null,ld:null,sow:null},
 ];
 const ZONES=[
   {key:"cold",label:"寒冷地",emoji:"❄️",desc:"北海道・東北など"},
@@ -131,6 +151,7 @@ export default function App(){
   const[form,setForm]=useState({});const[popup,setPopup]=useState(null);
   const[copied,setCopied]=useState(null);const[pwInput,setPwInput]=useState("");const[pwErr,setPwErr]=useState(false);
   const[editNotes,setEditNotes]=useState(false);const[notesVal,setNotesVal]=useState("");
+  const[groupEdit,setGroupEdit]=useState(null);
 
   const curField=fields.find(f=>f.id===fieldId)||null;
   const curBed=curField?.beds.find(b=>b.id===bedId)||null;
@@ -163,6 +184,16 @@ export default function App(){
   const toggleH=(fId,gr,c)=>upd(fs=>fs.map(f=>{if(f.id!==fId)return f;const p=new Set(f.hPaths);const k=`${gr}-${c}`;p.has(k)?p.delete(k):p.add(k);return{...f,hPaths:p};}));
   const addField=(name,rows,cols,pw)=>{upd(fs=>[...fs,makeField(name||("畑"+(fs.length+1)),rows,cols,pw)]);setScreen("home");};
   const delField=()=>{upd(fs=>fs.filter(f=>f.id!==fieldId));goHome();};
+  // グループ全体を一括更新
+  function saveGroupBed(groupBeds, changes){
+    upd(fs=>fs.map(f=>f.id!==fieldId?f:{...f,beds:f.beds.map(b=>{
+      if(!groupBeds.find(g=>g.id===b.id)) return b;
+      return {...b,...changes};
+    })}));
+    setGroupEdit(null);
+    setPopup(null);
+    setScreen("field");
+  }
   const saveNotes=()=>{upd(fs=>fs.map(f=>f.id!==fieldId?f:{...f,notes:notesVal}));setEditNotes(false);};
 
   if(screen==="zone")return(
@@ -220,7 +251,13 @@ export default function App(){
         :curField.notes?(<div>{curField.notes.split("\n").filter(l=>l.trim()).map((line,i,arr)=>(<div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"6px 0",borderBottom:i<arr.length-1?"1px solid #f5f0ea":"none"}}><div style={{width:16,height:16,borderRadius:4,border:"2px solid #b5d5a0",background:"white",flexShrink:0,marginTop:2,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{width:6,height:6,borderRadius:"50%",background:"#b5d5a0"}}/></div><div style={{fontSize:13,color:"#333",lineHeight:1.5,flex:1}}>{line.replace(/^[・\-\*•]\s*/,"")}</div></div>))}</div>)
         :(<div style={{fontSize:13,color:"#ccc",textAlign:"center",padding:"12px 0",cursor:"pointer"}} onClick={()=>{setNotesVal("");setEditNotes(true);}}>タップしてメモを追加</div>)}
       </div>
-      {popup&&popBed&&popField&&<BedPopup bed={popBed} field={popField} zone={zone} zoneObj={zoneObj} onEdit={()=>openBedEdit(popField.id,popBed.id)} onCopy={()=>{setCopied({veggie:popBed.veggie,ft:popBed.ft,pd:popBed.pd,harv:popBed.harv,memo:popBed.memo});setPopup(null);}} onClose={()=>setPopup(null)}/>}
+      {popup&&popBed&&popField&&<BedPopup bed={popBed} field={popField} zone={zone} zoneObj={zoneObj}
+        onEdit={()=>openBedEdit(popField.id,popBed.id)}
+        onCopy={()=>{setCopied({veggie:popBed.veggie,ft:popBed.ft,pd:popBed.pd,harv:popBed.harv,memo:popBed.memo});setPopup(null);}}
+        onClose={()=>setPopup(null)}
+        onEditGroup={group=>{setGroupEdit(group);setPopup(null);}}
+      />}
+      {groupEdit&&curField&&<GroupEditPopup group={groupEdit} field={curField} onSave={saveGroupBed} onClose={()=>setGroupEdit(null)}/>}
     </Shell>
   );
 
@@ -276,11 +313,13 @@ function AddField({onAdd,onBack}){
   return(<Shell title="新しい畑を追加" back={onBack}><Label>畑の名前</Label><input style={S.input} placeholder="例: 畑A" value={name} onChange={e=>setName(e.target.value)}/><Label>列数（縦）</Label><input style={S.input} type="number" min="1" max="8" value={rows} onChange={e=>setRows(e.target.value)}/><Label>畝の数（横）</Label><input style={S.input} type="number" min="1" max="8" value={cols} onChange={e=>setCols(e.target.value)}/><div style={{...S.estBox,marginTop:8}}>{rows}列 × {cols}畝 ＝ {(parseInt(rows)||1)*(parseInt(cols)||1)} マス</div><div style={{marginTop:12,background:"#f8f5f0",borderRadius:12,padding:12,border:"1px solid #e8ddd0"}}><div style={{fontSize:12,color:"#888",marginBottom:6}}>🔒 パスワード（共有する場合のみ）</div><input style={S.input} type="password" placeholder="未設定の場合は空白" value={pw} onChange={e=>setPw(e.target.value)}/></div><button style={S.btnP} onClick={()=>onAdd(name,parseInt(rows)||3,parseInt(cols)||4,pw)}>畑を作成する</button></Shell>);
 }
 
-function BedPopup({bed,field,zone,zoneObj,onEdit,onCopy,onClose}){
+function BedPopup({bed,field,zone,zoneObj,onEdit,onCopy,onClose,onEditGroup}){
   const st=getStatus(bed),v=getV(bed.veggie),isEmpty=bed.veggie==="空き";
   const cp=!isEmpty?getCompanion(field,bed):{goods:[],bads:[]};
   const warn=!isEmpty?getRotWarn(bed.hist||[],bed.veggie):null;
   const sow=zone&&v.sow?v.sow[zone]:null;
+  const group=!isEmpty?getGroup(field,bed):[];
+  const isGroup=group.length>1;
   return(<div style={S.overlay} onClick={onClose}><div style={S.popup} onClick={e=>e.stopPropagation()}>
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><div style={{width:36,height:36,borderRadius:10,background:getColor(bed.veggie),flexShrink:0}}/><div style={{flex:1}}><div style={{fontWeight:700,fontSize:17,color:"#2d4a1e"}}>{isEmpty?"空き畝":bed.veggie}</div><div style={{fontSize:12,color:"#aaa"}}>{field.name} — {bed.row+1}列目 {bed.col+1}番畝</div></div><button onClick={onClose} style={{background:"none",border:"none",fontSize:22,color:"#aaa",cursor:"pointer",lineHeight:1}}>✕</button></div>
     {!isEmpty&&<>
@@ -300,9 +339,61 @@ function BedPopup({bed,field,zone,zoneObj,onEdit,onCopy,onClose}){
       {(cp.goods.length>0||cp.bads.length>0)&&<div style={{...S.cpBox,marginBottom:10}}><div style={{fontWeight:700,fontSize:12,marginBottom:6}}>🌿 隣の畝との相性</div>{cp.goods.map((g,i)=><div key={i} style={{fontSize:12,marginBottom:3}}>✅ <b>{g.veggie}</b> — {g.reason}</div>)}{cp.bads.map((b,i)=><div key={i} style={{fontSize:12,marginBottom:3}}>❌ <b>{b.veggie}</b> — {b.reason}</div>)}</div>}
       {(bed.hist||[]).length>0&&<div style={{marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:"#666",marginBottom:6}}>📜 作付け履歴</div>{bed.hist.map((h,i)=><div key={i} style={{display:"flex",gap:8,padding:"6px 0",borderBottom:i<bed.hist.length-1?"1px solid #f0ede8":"none"}}><div style={{width:8,height:8,borderRadius:"50%",background:getColor(h.veggie),flexShrink:0,marginTop:4}}/><div><div style={{fontSize:12,fontWeight:700,color:"#2d4a1e"}}>{h.veggie} <span style={{fontWeight:400,color:"#aaa"}}>{h.ft==="sd"?"🌰":"🌿"}</span></div><div style={{fontSize:11,color:"#999"}}>🌱{h.pd}{h.harv?" ✅"+h.harv:""}</div></div></div>)}</div>}
     </>}
-    <div style={{display:"flex",gap:8,marginTop:4}}><button style={{...S.btnP,flex:1,marginTop:0}} onClick={onEdit}>{isEmpty?"🌱 野菜を登録":"✏️ 編集する"}</button>{!isEmpty&&<button style={{flex:1,background:"#e8f5e0",border:"1.5px solid #b5d5a0",borderRadius:14,padding:"14px",fontSize:14,fontWeight:700,color:"#2d6a20",cursor:"pointer"}} onClick={onCopy}>📋 コピー</button>}</div>
+    <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
+      <button style={{...S.btnP,flex:1,marginTop:0,minWidth:120}} onClick={onEdit}>{isEmpty?"🌱 野菜を登録":"✏️ 個別編集"}</button>
+      {!isEmpty&&<button style={{flex:1,minWidth:120,background:"#e8f5e0",border:"1.5px solid #b5d5a0",borderRadius:14,padding:"14px",fontSize:14,fontWeight:700,color:"#2d6a20",cursor:"pointer"}} onClick={onCopy}>📋 コピー</button>}
+    </div>
+    {isGroup&&<button style={{...S.btnP,marginTop:8,background:"linear-gradient(135deg,#3a6a8a,#5a9ab5)"}} onClick={()=>onEditGroup(group)}>🌿 グループ全体を編集（{group.length}畝）</button>}
 
   </div></div>);
+}
+
+
+// ── グループ編集ポップアップ ─────────────────────────────────
+function GroupEditPopup({group,field,onSave,onClose}){
+  const bed=group[0];
+  const[harv,setHarv]=useState(bed.harv||"");
+  const[memo,setMemo]=useState(bed.memo||"");
+  const allHarvested=group.every(b=>b.harv);
+  const st=getStatus(bed);
+  return(
+    <div style={S.overlay} onClick={onClose}>
+      <div style={S.popup} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+          <div style={{width:36,height:36,borderRadius:10,background:getColor(bed.veggie),flexShrink:0}}/>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:700,fontSize:17,color:"#2d4a1e"}}>{bed.veggie}</div>
+            <div style={{fontSize:12,color:"#aaa"}}>🌿 {group.length}畝グループ — 🌱 {bed.pd}</div>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:22,color:"#aaa",cursor:"pointer",lineHeight:1}}>✕</button>
+        </div>
+        {/* グループ内の畝一覧 */}
+        <div style={{background:"#f8f8f5",borderRadius:10,padding:"10px 12px",marginBottom:12}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#666",marginBottom:6}}>グループの畝</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+            {group.map((b,i)=>(
+              <span key={i} style={{fontSize:11,background:getColor(b.veggie),color:"#2d3a2e",borderRadius:6,padding:"2px 8px"}}>
+                {b.row+1}列{b.col+1}番
+              </span>
+            ))}
+          </div>
+        </div>
+        {/* 一括収穫記録 */}
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#666",marginBottom:4}}>✅ 収穫日（全畝に適用）</div>
+          <input style={S.input} type="date" value={harv} onChange={e=>setHarv(e.target.value)}/>
+        </div>
+        {/* 一括メモ */}
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#666",marginBottom:4}}>📝 メモ（全畝に適用）</div>
+          <textarea style={{...S.input,height:64,resize:"none"}} value={memo} onChange={e=>setMemo(e.target.value)} placeholder="例：豊作でした！"/>
+        </div>
+        <button style={{...S.btnP,marginTop:0}} onClick={()=>onSave(group,{harv,memo})}>
+          🌿 {group.length}畝まとめて保存
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // FieldMap: Canvas で描画（JSXのレイアウト問題を根本排除）
@@ -519,7 +610,7 @@ function MultiPhotoPicker({photos,onChange}){
         <div onClick={()=>ref.current?.click()} style={{border:"2px dashed #c8ddc0",borderRadius:12,padding:"16px",textAlign:"center",color:"#8aac7a",cursor:"pointer",background:"#f5fbf2"}}>
           <div style={{fontSize:26,marginBottom:3}}>📷</div>
           <div style={{fontSize:13,fontWeight:600}}>タップして写真を追加</div>
-          <div style={{fontSize:11,color:"#aaa",marginTop:2}}>{(photos||[]).length}/{MAX}枚　有料版限定機能</div>
+          <div style={{fontSize:11,color:"#aaa",marginTop:2}}>{(photos||[]).length}/{MAX}枚</div>
         </div>
       )}
       {(photos||[]).length>=MAX&&(
@@ -560,7 +651,7 @@ const S={
   avoidBox:{background:"#fff8f0",border:"1.5px solid #f0c080",borderRadius:10,padding:"12px 14px",marginBottom:8},
   warnBox:{background:"#fef9ec",border:"1.5px solid #f0c060",borderRadius:10,padding:"9px 14px",fontSize:13,color:"#8a5a00",marginBottom:8},
   cpBox:{background:"#f0faf5",border:"1.5px solid #a8e0c0",borderRadius:10,padding:"10px 14px"},
-  btnP:{marginTop:14,width:"100%",background:"linear-gradient(135deg,#5a8a3c,#7ab55a)",color:"white",border:"none",borderRadius:14,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer"},
+  btnP:{marginTop:14,marginBottom:40,width:"100%",background:"linear-gradient(135deg,#5a8a3c,#7ab55a)",color:"white",border:"none",borderRadius:14,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer"},
   btnD:{width:"100%",background:"white",color:"#c0392b",border:"1.5px solid #e0b0ae",borderRadius:14,padding:"12px",fontSize:14,cursor:"pointer"},
   overlay:{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:100},
   popup:{background:"white",borderRadius:"20px 20px 0 0",padding:"20px 18px 32px",width:"100%",maxWidth:390,maxHeight:"85vh",overflowY:"auto"},
