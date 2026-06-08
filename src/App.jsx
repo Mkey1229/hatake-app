@@ -298,8 +298,11 @@ export default function App(){
           <Label>メモ</Label><textarea style={{...S.input,height:64,resize:"none"}} value={form.memo} onChange={e=>setForm(f=>({...f,memo:e.target.value}))}/>
           <Label>写真（最大5枚）</Label><MultiPhotoPicker photos={form.photos||[]} onChange={photos=>setForm(f=>({...f,photos}))}/>
         </>}
-        <button style={S.btnP} onClick={saveBed}>保存する</button>
+        <div style={{height:80}}/>{/* 固定ボタン分のスペース */}
         {(curBed.hist||[]).length>0&&<div style={{marginTop:20}}><div style={{fontSize:13,fontWeight:700,color:"#666",borderTop:"1px solid #eee",paddingTop:12,marginBottom:8}}>📜 作付け履歴</div>{curBed.hist.map((h,i)=><div key={i} style={{display:"flex",gap:8,padding:"8px 0",borderBottom:i<curBed.hist.length-1?"1px solid #f5f0ea":"none"}}><div style={{width:10,height:10,borderRadius:"50%",background:getColor(h.veggie),flexShrink:0,marginTop:3}}/><div><div style={{fontWeight:700,fontSize:13,color:"#2d4a1e"}}>{h.veggie} <span style={{fontSize:11,fontWeight:400,color:"#aaa"}}>{h.ft==="sd"?"🌰":"🌿"}</span></div><div style={{fontSize:11,color:"#999"}}>🌱{h.pd}{h.harv?" ✅"+h.harv:""}</div>{h.memo&&<div style={{fontSize:11,color:"#bbb",fontStyle:"italic"}}>📝{h.memo}</div>}</div></div>)}</div>}
+      <div style={{position:"fixed",bottom:0,left:0,right:0,padding:"12px 16px 32px",background:"white",borderTop:"1px solid #eee",zIndex:50,maxWidth:390,margin:"0 auto"}}>
+        <button style={{...S.btnP,marginTop:0,marginBottom:0}} onClick={saveBed}>保存する</button>
+      </div>
       </Shell>
     );
   }
