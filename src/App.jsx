@@ -1,4 +1,64 @@
 
+// ── Supabase設定 ───────────────────────────────────────────────
+const SUPABASE_URL = "https://hagkeqlvesuybdgjrtln.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhhZ2tlcWx2ZXN1eWJkZ2pydGxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3MzE5OTgsImV4cCI6MjA5NTMwNzk5OH0.H2rXdielApV1dIy_evZg0tU9S60yqKjeinuv3xFelhk";
+
+// ユーザーIDを取得（端末固有のID）
+function getUserId() {
+  let uid = localStorage.getItem("hatake_uid");
+  if (!uid) {
+    uid = Date.now().toString(36) + Math.random().toString(36).slice(2);
+    localStorage.setItem("hatake_uid", uid);
+  }
+  return uid;
+}
+
+// Supabaseにデータを保存
+async function saveToSupabase(fields) {
+  try {
+    const userId = getUserId();
+    const toSave = fields.map(f => ({...f, vPaths:[...f.vPaths], hPaths:[...f.hPaths]}));
+    const res = await fetch(SUPABASE_URL + "/rest/v1/fields", {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": "Bearer " + SUPABASE_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates"
+      },
+      body: JSON.stringify({
+        id: userId,
+        user_id: userId,
+        data: toSave,
+        updated_at: new Date().toISOString()
+      })
+    });
+    return res.ok;
+  } catch(e) { return false; }
+}
+
+// Supabaseからデータを読み込む
+async function loadFromSupabase() {
+  try {
+    const userId = getUserId();
+    const res = await fetch(SUPABASE_URL + "/rest/v1/fields?id=eq." + userId, {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": "Bearer " + SUPABASE_KEY,
+      }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || data.length === 0) return null;
+    return data[0].data.map(f => ({
+      ...f,
+      vPaths: new Set(f.vPaths||[]),
+      hPaths: new Set(f.hPaths||[])
+    }));
+  } catch(e) { return null; }
+}
+
+
 // ── グループ管理 ───────────────────────────────────────────────
 // 同じ野菜・同じ植えた日の畝をグループとして扱う
 function getGroupKey(bed){
@@ -158,13 +218,24 @@ export default function App(){
   const popField=popup?fields.find(f=>f.id===popup.fid)||null:null;
   const popBed=popField?.beds.find(b=>b.id===popup.bid)||null;
   const zoneObj=ZONES.find(z=>z.key===zone);
+  // 起動時にSupabaseからデータを読み込む
+  useState(()=>{
+    loadFromSupabase().then(data=>{
+      if(data&&data.length>0){
+        setFields(data);
+      }
+    });
+  });
+
   const upd=fn=>setFields(prev=>{
     const next=fn(prev);
     try{
-      // SetをArrayに変換して保存
+      // SetをArrayに変換してlocalStorageに保存
       const toSave=next.map(f=>({...f,vPaths:[...f.vPaths],hPaths:[...f.hPaths]}));
       localStorage.setItem("hatake_fields",JSON.stringify(toSave));
     }catch(e){}
+    // Supabaseにも保存（非同期）
+    saveToSupabase(next);
     return next;
   });
 
