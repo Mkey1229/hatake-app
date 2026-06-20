@@ -3,20 +3,59 @@
 const SUPABASE_URL = "https://hagkeqlvesuybdgjrtln.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhhZ2tlcWx2ZXN1eWJkZ2pydGxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3MzE5OTgsImV4cCI6MjA5NTMwNzk5OH0.H2rXdielApV1dIy_evZg0tU9S60yqKjeinuv3xFelhk";
 
-// ユーザーIDを取得（端末固有のID）
-function getUserId() {
-  let uid = localStorage.getItem("hatake_uid");
-  if (!uid) {
-    uid = Date.now().toString(36) + Math.random().toString(36).slice(2);
-    localStorage.setItem("hatake_uid", uid);
+// 匿名ログイン
+async function signInAnon() {
+  try {
+    // すでにトークンがあればそれを使う
+    const saved = localStorage.getItem("hatake_token");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.expires_at > Date.now()/1000) return parsed;
+    }
+    const res = await fetch(SUPABASE_URL + "/auth/v1/signup", {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({})
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.access_token) {
+      localStorage.setItem("hatake_token", JSON.stringify({
+        access_token: data.access_token,
+        user_id: data.user.id,
+        expires_at: data.expires_at
+      }));
+      return data;
+    }
+    return null;
+  } catch(e) { return null; }
+}
+
+
+// ── バックアップコード ─────────────────────────────────────────
+function getBackupCode() {
+  let code = localStorage.getItem("hatake_code");
+  if (!code) {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    code = "HATAKE-";
+    for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random()*chars.length)];
+    localStorage.setItem("hatake_code", code);
   }
-  return uid;
+  return code;
+}
+
+// ユーザーIDを取得（バックアップコードベース）
+function getUserId() {
+  return getBackupCode();
 }
 
 // Supabaseにデータを保存
 async function saveToSupabase(fields) {
   try {
-    const userId = getUserId();
+    const code = getUserId();
     const toSave = fields.map(f => ({...f, vPaths:[...f.vPaths], hPaths:[...f.hPaths]}));
     const res = await fetch(SUPABASE_URL + "/rest/v1/fields", {
       method: "POST",
@@ -27,8 +66,8 @@ async function saveToSupabase(fields) {
         "Prefer": "resolution=merge-duplicates"
       },
       body: JSON.stringify({
-        id: userId,
-        user_id: userId,
+        id: code,
+        user_id: code,
         data: toSave,
         updated_at: new Date().toISOString()
       })
@@ -38,10 +77,10 @@ async function saveToSupabase(fields) {
 }
 
 // Supabaseからデータを読み込む
-async function loadFromSupabase() {
+async function loadFromSupabase(code) {
   try {
-    const userId = getUserId();
-    const res = await fetch(SUPABASE_URL + "/rest/v1/fields?id=eq." + userId, {
+    const id = code || getUserId();
+    const res = await fetch(SUPABASE_URL + "/rest/v1/fields?id=eq." + id, {
       headers: {
         "apikey": SUPABASE_KEY,
         "Authorization": "Bearer " + SUPABASE_KEY,
@@ -82,37 +121,37 @@ import { useState, useRef, useEffect, useMemo } from "react";
 
 const VG=[
   {name:"空き",color:"#e8e8e0",family:null,rest:0,sd:null,ld:null,sow:null},
-  {name:"トマト",color:"#ffc5b8",family:"ナス科",rest:3,sd:90,ld:75,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
-  {name:"ミニトマト",color:"#ffd5c0",family:"ナス科",rest:3,sd:80,ld:65,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
-  {name:"なす",color:"#d8b8f0",family:"ナス科",rest:3,sd:90,ld:70,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
-  {name:"ピーマン",color:"#b8f0b8",family:"ナス科",rest:3,sd:100,ld:80,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"パプリカ",color:"#ffcca0",family:"ナス科",rest:3,sd:110,ld:90,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"じゃがいも",color:"#ffe0a0",family:"ナス科",rest:3,sd:90,ld:90,sow:{cold:[4,5],warm:[3,4],hot:[2,3]}},
-  {name:"きゅうり",color:"#a8e8d8",family:"ウリ科",rest:2,sd:65,ld:55,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
-  {name:"スイカ",color:"#ffb8b8",family:"ウリ科",rest:3,sd:100,ld:90,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"メロン",color:"#c8f0e8",family:"ウリ科",rest:3,sd:110,ld:100,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"ズッキーニ",color:"#a0ddd0",family:"ウリ科",rest:2,sd:55,ld:50,sow:{cold:[5,6],warm:[4,5],hot:[3,5]}},
-  {name:"かぼちゃ",color:"#ffe0b0",family:"ウリ科",rest:2,sd:110,ld:100,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"だいこん",color:"#f0f0f0",family:"アブラナ科",rest:1,sd:60,ld:null,sow:{cold:[8,9],warm:[8,10],hot:[9,10]}},
-  {name:"キャベツ",color:"#b8f0c8",family:"アブラナ科",rest:1,sd:90,ld:70,sow:{cold:[7,8],warm:[7,9],hot:[8,9]}},
-  {name:"ブロッコリー",color:"#90d8a8",family:"アブラナ科",rest:1,sd:90,ld:70,sow:{cold:[7,8],warm:[7,9],hot:[8,9]}},
-  {name:"白菜",color:"#d8f5e0",family:"アブラナ科",rest:1,sd:80,ld:60,sow:{cold:[8,8],warm:[8,9],hot:[9,9]}},
-  {name:"小松菜",color:"#a8e8b8",family:"アブラナ科",rest:1,sd:40,ld:null,sow:{cold:[4,9],warm:[3,10],hot:[2,11]}},
-  {name:"水菜",color:"#c8f5d8",family:"アブラナ科",rest:1,sd:45,ld:null,sow:{cold:[4,9],warm:[3,10],hot:[2,11]}},
-  {name:"にんじん",color:"#ffcc88",family:"セリ科",rest:1,sd:100,ld:null,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"ほうれん草",color:"#88d8b0",family:"アカザ科",rest:1,sd:45,ld:null,sow:{cold:[8,9],warm:[9,10],hot:[10,11]}},
-  {name:"レタス",color:"#e8f8d0",family:"キク科",rest:1,sd:60,ld:50,sow:{cold:[4,5],warm:[3,5],hot:[2,4]}},
-  {name:"サニーレタス",color:"#ffd8b8",family:"キク科",rest:1,sd:55,ld:45,sow:{cold:[4,5],warm:[3,5],hot:[2,4]}},
-  {name:"えだまめ",color:"#d0f0a0",family:"マメ科",rest:1,sd:80,ld:null,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"いんげん",color:"#e8f8b0",family:"マメ科",rest:1,sd:55,ld:null,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"ねぎ",color:"#e8f5d0",family:"ユリ科",rest:1,sd:120,ld:90,sow:{cold:[3,4],warm:[3,4],hot:[2,3]}},
-  {name:"たまねぎ",color:"#e0d0f8",family:"ユリ科",rest:1,sd:180,ld:150,sow:{cold:[9,9],warm:[9,10],hot:[10,10]}},
-  {name:"さつまいも",color:"#ffc898",family:"ヒルガオ科",rest:3,sd:130,ld:120,sow:{cold:[6,6],warm:[5,6],hot:[4,5]}},
-  {name:"とうもろこし",color:"#fff0a8",family:"イネ科",rest:1,sd:85,ld:null,sow:{cold:[5,6],warm:[4,5],hot:[3,4]}},
-  {name:"オクラ",color:"#b8e8b0",family:"アオイ科",rest:1,sd:60,ld:50,sow:{cold:[6,6],warm:[5,6],hot:[4,5]}},
-  {name:"いちご",color:"#ffc0d8",family:"バラ科",rest:2,sd:null,ld:60,sow:{cold:[9,10],warm:[9,10],hot:[10,11]}},
-  {name:"バジル",color:"#b0f0c8",family:"シソ科",rest:1,sd:50,ld:40,sow:{cold:[5,6],warm:[4,6],hot:[3,5]}},
-  {name:"シソ",color:"#d8b8f0",family:"シソ科",rest:1,sd:60,ld:null,sow:{cold:[5,6],warm:[4,6],hot:[3,5]}},
+  {name:"トマト",color:"#ffc5b8",family:"ナス科",rest:3,sd:90,ld:75,sow:{"cold":[[5,6]],"warm":[[4,5]],"hot":[[3,5]]}},
+  {name:"ミニトマト",color:"#ffd5c0",family:"ナス科",rest:3,sd:80,ld:65,sow:{"cold":[[5,6]],"warm":[[4,5]],"hot":[[3,5]]}},
+  {name:"なす",color:"#d8b8f0",family:"ナス科",rest:3,sd:90,ld:70,sow:{"cold":[[5,6]],"warm":[[4,5]],"hot":[[3,5]]}},
+  {name:"ピーマン",color:"#b8f0b8",family:"ナス科",rest:3,sd:100,ld:80,sow:{"cold":[[5,6]],"warm":[[4,5]],"hot":[[3,4]]}},
+  {name:"パプリカ",color:"#ffcca0",family:"ナス科",rest:3,sd:110,ld:90,sow:{"cold":[[5,6]],"warm":[[4,5]],"hot":[[3,4]]}},
+  {name:"じゃがいも",color:"#ffe0a0",family:"ナス科",rest:3,sd:90,ld:90,sow:{"cold":[[4,5]],"warm":[[3,4]],"hot":[[2,3]]}},
+  {name:"きゅうり",color:"#a8e8d8",family:"ウリ科",rest:2,sd:65,ld:55,sow:{"cold":[[5,6]],"warm":[[4,5]],"hot":[[3,5]]}},
+  {name:"スイカ",color:"#ffb8b8",family:"ウリ科",rest:3,sd:100,ld:90,sow:{"cold":[[5,6]],"warm":[[4,5]],"hot":[[3,4]]}},
+  {name:"メロン",color:"#c8f0e8",family:"ウリ科",rest:3,sd:110,ld:100,sow:{"cold":[[5,6]],"warm":[[4,5]],"hot":[[3,4]]}},
+  {name:"ズッキーニ",color:"#a0ddd0",family:"ウリ科",rest:2,sd:55,ld:50,sow:{"cold":[[5,6]],"warm":[[4,5]],"hot":[[3,5]]}},
+  {name:"かぼちゃ",color:"#ffe0b0",family:"ウリ科",rest:2,sd:110,ld:100,sow:{"cold":[[5,6]],"warm":[[4,5]],"hot":[[3,4]]}},
+  {name:"だいこん",color:"#f0f0f0",family:"アブラナ科",rest:1,sd:60,ld:null,sow:{"cold":[[3,5],[8,9]],"warm":[[3,5],[8,10]],"hot":[[3,4],[9,10]]}},
+  {name:"キャベツ",color:"#b8f0c8",family:"アブラナ科",rest:1,sd:90,ld:70,sow:{"cold":[[3,4],[7,8]],"warm":[[3,4],[7,9]],"hot":[[3,4],[8,9]]}},
+  {name:"ブロッコリー",color:"#90d8a8",family:"アブラナ科",rest:1,sd:90,ld:70,sow:{"cold":[[3,4],[7,8]],"warm":[[3,4],[7,9]],"hot":[[3,4],[8,9]]}},
+  {name:"白菜",color:"#d8f5e0",family:"アブラナ科",rest:1,sd:80,ld:60,sow:{"cold":[[7,8]],"warm":[[8,9]],"hot":[[9,9]]}},
+  {name:"小松菜",color:"#a8e8b8",family:"アブラナ科",rest:1,sd:40,ld:null,sow:{"cold":[[3,5],[8,10]],"warm":[[3,6],[8,11]],"hot":[[2,6],[8,11]]}},
+  {name:"水菜",color:"#c8f5d8",family:"アブラナ科",rest:1,sd:45,ld:null,sow:{"cold":[[3,5],[8,10]],"warm":[[3,6],[8,11]],"hot":[[2,6],[8,11]]}},
+  {name:"にんじん",color:"#ffcc88",family:"セリ科",rest:1,sd:100,ld:null,sow:{"cold":[[3,5],[7,8]],"warm":[[3,5],[7,8]],"hot":[[2,4],[8,9]]}},
+  {name:"ほうれん草",color:"#88d8b0",family:"アカザ科",rest:1,sd:45,ld:null,sow:{"cold":[[3,4],[8,9]],"warm":[[3,4],[9,10]],"hot":[[3,4],[10,11]]}},
+  {name:"レタス",color:"#e8f8d0",family:"キク科",rest:1,sd:60,ld:50,sow:{"cold":[[3,5],[8,9]],"warm":[[3,5],[9,10]],"hot":[[2,4],[9,10]]}},
+  {name:"サニーレタス",color:"#ffd8b8",family:"キク科",rest:1,sd:55,ld:45,sow:{"cold":[[3,5],[8,9]],"warm":[[3,5],[9,10]],"hot":[[2,4],[9,10]]}},
+  {name:"えだまめ",color:"#d0f0a0",family:"マメ科",rest:1,sd:80,ld:null,sow:{"cold":[[5,6]],"warm":[[4,5]],"hot":[[3,4]]}},
+  {name:"いんげん",color:"#e8f8b0",family:"マメ科",rest:1,sd:55,ld:null,sow:{"cold":[[5,6]],"warm":[[4,5]],"hot":[[3,4]]}},
+  {name:"ねぎ",color:"#e8f5d0",family:"ユリ科",rest:1,sd:120,ld:90,sow:{"cold":[[3,4]],"warm":[[3,4]],"hot":[[2,3]]}},
+  {name:"たまねぎ",color:"#e0d0f8",family:"ユリ科",rest:1,sd:180,ld:150,sow:{"cold":[[9,9]],"warm":[[9,10]],"hot":[[10,10]]}},
+  {name:"さつまいも",color:"#ffc898",family:"ヒルガオ科",rest:3,sd:130,ld:120,sow:{"cold":[[6,6]],"warm":[[5,6]],"hot":[[4,5]]}},
+  {name:"とうもろこし",color:"#fff0a8",family:"イネ科",rest:1,sd:85,ld:null,sow:{"cold":[[5,6]],"warm":[[4,5]],"hot":[[3,4]]}},
+  {name:"オクラ",color:"#b8e8b0",family:"アオイ科",rest:1,sd:60,ld:50,sow:{"cold":[[6,6]],"warm":[[5,6]],"hot":[[4,5]]}},
+  {name:"いちご",color:"#ffc0d8",family:"バラ科",rest:2,sd:null,ld:60,sow:{"cold":[[9,10]],"warm":[[9,10]],"hot":[[10,11]]}},
+  {name:"バジル",color:"#b0f0c8",family:"シソ科",rest:1,sd:50,ld:40,sow:{"cold":[[5,6]],"warm":[[4,6]],"hot":[[3,5]]}},
+  {name:"シソ",color:"#d8b8f0",family:"シソ科",rest:1,sd:60,ld:null,sow:{"cold":[[5,6]],"warm":[[4,6]],"hot":[[3,5]]}},
   {name:"その他",color:"#e0e5e8",family:null,rest:0,sd:null,ld:null,sow:null},
 ];
 const ZONES=[
@@ -130,6 +169,8 @@ const COMPANION={
 };
 
 const today=()=>new Date().toISOString().split("T")[0];
+const fmtDate=d=>d?d.replace(/-/g,"/"):"";
+
 const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x.toISOString().split("T")[0];};
 const getV=n=>VG.find(v=>v.name===n)||VG[0];
 const getColor=n=>getV(n).color;
@@ -171,7 +212,7 @@ function getCompanion(field,bed){
 }
 
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
-function makeBed(fid,r,c){return{id:`${fid}-${r}-${c}`,row:r,col:c,veggie:"空き",ft:"ld",pd:"",est:"",harv:"",memo:"",photos:[],hist:[]};}
+function makeBed(fid,r,c){return{id:`${fid}-${r}-${c}`,row:r,col:c,veggie:"空き",ft:"ld",pd:"",est:"",harv:"",remov:"",memo:"",photos:[],hist:[]};}
 function makeField(name,rows,cols,pw){
   const id=uid();const beds=[];
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)beds.push(makeBed(id,r,c));
@@ -247,7 +288,18 @@ export default function App(){
     const f=fields.find(x=>x.id===fieldId),b=f?.beds.find(x=>x.id===bedId);if(!f||!b)return;
     const est=calcEst(form.veggie,form.ft,form.pd,form.cd);
     let hist=[...(b.hist||[])];if(b.veggie!=="空き"&&b.veggie!==form.veggie&&b.pd)hist=[{veggie:b.veggie,ft:b.ft,pd:b.pd,harv:b.harv,memo:b.memo},...hist];
-    const u={...b,veggie:form.veggie,ft:form.ft,pd:form.veggie==="空き"?"":form.pd,est:form.veggie==="空き"?"":est,harv:form.veggie==="空き"?"":form.harv,memo:form.memo,photos:form.photos||[],hist};
+    // 撤去日が入力されたら空き畝にして履歴に追加
+    let saveVeggie=form.veggie,savePd=form.pd,saveEst=est,saveHarv=form.harv,saveRemov=form.remov||"";
+    if(form.remov&&form.veggie!=="空き"){
+      hist=[{veggie:form.veggie,ft:form.ft,pd:form.pd,harv:form.harv,remov:form.remov,memo:form.memo},...(b.hist||[])];
+      saveVeggie="空き";savePd="";saveEst="";saveHarv="";saveRemov="";
+    }
+    const u={...b,veggie:saveVeggie,ft:form.ft,
+      pd:saveVeggie==="空き"?"":savePd,
+      est:saveVeggie==="空き"?"":saveEst,
+      harv:saveVeggie==="空き"?"":saveHarv,
+      remov:saveRemov,
+      memo:form.memo,photos:form.photos||[],hist};
     upd(fs=>fs.map(x=>x.id!==fieldId?x:{...x,beds:x.beds.map(y=>y.id!==bedId?y:u)}));setScreen("field");
   };
   const pasteBed=tId=>{if(!copied||!fieldId)return;upd(fs=>fs.map(x=>x.id!==fieldId?x:{...x,beds:x.beds.map(b=>b.id!==tId?b:{...b,veggie:copied.veggie,ft:copied.ft,pd:copied.pd,est:calcEst(copied.veggie,copied.ft,copied.pd,""),harv:copied.harv,memo:copied.memo})}));};
@@ -255,11 +307,19 @@ export default function App(){
   const toggleH=(fId,gr,c)=>upd(fs=>fs.map(f=>{if(f.id!==fId)return f;const p=new Set(f.hPaths);const k=`${gr}-${c}`;p.has(k)?p.delete(k):p.add(k);return{...f,hPaths:p};}));
   const addField=(name,rows,cols,pw)=>{upd(fs=>[...fs,makeField(name||("畑"+(fs.length+1)),rows,cols,pw)]);setScreen("home");};
   const delField=()=>{upd(fs=>fs.filter(f=>f.id!==fieldId));goHome();};
-  // グループ全体を一括更新
+  // グループ一括更新（撤去日対応）
   function saveGroupBed(groupBeds, changes){
     upd(fs=>fs.map(f=>f.id!==fieldId?f:{...f,beds:f.beds.map(b=>{
       if(!groupBeds.find(g=>g.id===b.id)) return b;
-      return {...b,...changes};
+      // 撤去日が入力された場合は空き畝に
+      if(changes.remov){
+        const hist=[{veggie:b.veggie,ft:b.ft,pd:b.pd,harv:changes.harv||b.harv,remov:changes.remov,memo:changes.memo||b.memo},...(b.hist||[])];
+        return{...b,veggie:"空き",pd:"",est:"",harv:"",remov:"",memo:"",hist};
+      }
+      const updated={...b};
+      if(changes.harv) updated.harv=changes.harv;
+      if(changes.memo) updated.memo=changes.memo;
+      return updated;
     })}));
     setGroupEdit(null);
     setPopup(null);
@@ -302,20 +362,28 @@ export default function App(){
           </div>
         );
       })}
+      <BackupCodeSection onRestore={async(code)=>{
+        const data=await loadFromSupabase(code);
+        if(data){localStorage.setItem("hatake_code",code);setFields(data);alert("復元しました！");}
+        else{alert("コードが見つかりません");}
+      }}/>
     </Shell>
   );
 
   if(screen==="field"&&curField)return(
-    <Shell title={curField.name} back={()=>{setCopied(null);goHome();}} right={copied?<button style={{...S.hBtn,background:"rgba(192,57,43,0.85)"}} onClick={()=>setCopied(null)}>✕ キャンセル</button>:<button style={S.hBtn} onClick={()=>setScreen("fieldSet")}>⚙</button>}>
-      {copied&&<div style={S.clipBar}><div style={{width:10,height:10,borderRadius:"50%",background:getColor(copied.veggie),flexShrink:0}}/><span style={{fontSize:12,flex:1}}><b>{copied.veggie}</b> コピー中 — 長押しスワイプで連続ペースト</span></div>}
-      {!copied&&<div style={S.hint}>💡 畝タップ→詳細　長押しスワイプ→コピペ　畝間タップ→通路</div>}
+    <Shell title={curField.name} back={()=>{setCopied(null);goHome();}} right={copied?<button style={{...S.hBtn,background:"rgba(192,57,43,0.85)"}} onClick={()=>setCopied(null)}>コピー終了</button>:<button style={S.hBtn} onClick={()=>setScreen("fieldSet")}>⚙</button>}>
+      {copied&&<div style={S.clipBar}>
+        <div style={{width:10,height:10,borderRadius:"50%",background:getColor(copied.veggie),flexShrink:0}}/>
+        <span style={{fontSize:12,flex:1}}><b>{copied.veggie}</b> コピー中 — 長押しスワイプで連続ペースト</span>
+      </div>}
+      {!copied&&<div style={S.hint}>💡 畝タップ/詳細　長押し/コピー　畝間タップ/通路　2本指/拡大</div>}
       <FieldMap field={curField} copied={copied}
         onBedTap={bed=>{if(copied)pasteBed(bed.id);else setPopup({fid:curField.id,bid:bed.id});}}
         onBedLongPress={bed=>{if(bed.veggie!=="空き")setCopied({veggie:bed.veggie,ft:bed.ft,pd:bed.pd,harv:bed.harv,memo:bed.memo});}}
         onBedSwipePaste={bed=>pasteBed(bed.id)}
         onVGap={(r,c)=>toggleV(curField.id,r,c)} onHGap={(r,c)=>toggleH(curField.id,r,c)}
       />
-      <Legend/>
+      <button style={{...S.hBtn,background:"#f0f7eb",color:"#2d6a20",border:"1.5px solid #b5d5a0",borderRadius:12,padding:"10px 14px",fontSize:13,fontWeight:700,cursor:"pointer",width:"100%",marginBottom:10,textAlign:"left"}} onClick={()=>setScreen("gantt")}>📈 野菜別栽培期間を見る</button>
       <div style={S.notesBox}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><span style={{fontWeight:700,fontSize:14,color:"#2d4a1e"}}>📋 次にやる作業メモ</span>{!editNotes&&<button style={S.editBtn} onClick={()=>{setNotesVal(curField.notes||"");setEditNotes(true);}}>編集</button>}</div>
         {editNotes?(<><textarea style={{...S.input,height:88,resize:"none",fontSize:14}} value={notesVal} onChange={e=>setNotesVal(e.target.value)} placeholder="・トマトの脇芽かき&#10;・水やり（月水金）" autoFocus/><div style={{display:"flex",gap:8,marginTop:8}}><button style={{...S.btnP,flex:1,marginTop:0}} onClick={saveNotes}>保存</button><button style={{flex:1,border:"1.5px solid #ddd",borderRadius:14,padding:"12px",fontSize:14,background:"white",color:"#888",cursor:"pointer"}} onClick={()=>setEditNotes(false)}>キャンセル</button></div></>)
@@ -346,7 +414,17 @@ export default function App(){
     const avoid=getAvoid(curBed.hist||[]),warn=getRotWarn(curBed.hist||[],form.veggie),sow=zone&&v.sow?v.sow[zone]:null;
     const cp=form.veggie!=="空き"&&curField?getCompanion({...curField,beds:curField.beds.map(b=>b.id===bedId?{...b,veggie:form.veggie}:b)},{...curBed,veggie:form.veggie}):{goods:[],bads:[]};
     return(
-      <Shell title="畝の編集" back={()=>setScreen("field")} right={form.veggie!=="空き"?<button style={S.hBtn} onClick={()=>{setCopied({veggie:form.veggie,ft:form.ft,pd:form.pd,harv:form.harv,memo:form.memo});setScreen("field");}}>📋 コピー</button>:null}>
+      <Shell title="畝の編集" back={()=>setScreen("field")}
+        right={<button style={{...S.hBtn,background:"rgba(192,57,43,0.75)"}} onClick={()=>{
+          // コピーをクリア
+          setCopied(null);
+          // 現在の畝を空きに戻す
+          if(curBed&&curBed.veggie!=="空き"){
+            upd(fs=>fs.map(x=>x.id!==fieldId?x:{...x,beds:x.beds.map(y=>y.id!==bedId?y:{...y,veggie:"空き",pd:"",est:"",harv:"",remov:"",memo:"",photos:[]})}));
+          }
+          setScreen("field");
+        }}>野菜の削除</button>}
+      >
         <div style={{color:"#888",fontSize:12,marginBottom:12}}>{curField?.name} — {curBed.row+1}列目 {curBed.col+1}番畝</div>
         {avoid.length>0&&<div style={S.avoidBox}><div style={{fontWeight:700,fontSize:13,marginBottom:6}}>🚫 この畝で避ける野菜</div>{avoid.map((a,i)=><div key={i} style={{marginBottom:i<avoid.length-1?8:0}}><div style={{fontSize:12,fontWeight:700,color:"#8a3a00"}}>{a.family} — あと約{a.rem}年空けるとよい</div><div style={{fontSize:11,color:"#a05020",marginTop:2,lineHeight:1.6}}>避けるべき野菜：{a.list.join("・")}</div></div>)}</div>}
         {warn&&<div style={S.warnBox}>⚠️ <b>{warn.family}</b> {warn.ago}年前に作付け／あと約{(warn.need-parseFloat(warn.ago)).toFixed(1)}年空けるとよい</div>}
@@ -357,20 +435,23 @@ export default function App(){
         {form.veggie!=="空き"&&<>
           {getV(form.veggie).family&&getV(form.veggie).rest>0&&<div style={{background:"#f5f5f0",borderRadius:10,padding:"8px 12px",fontSize:12,color:"#666",marginTop:6}}>ℹ️ <b>{getV(form.veggie).family}</b> は連作を <b>{getV(form.veggie).rest}年</b> 空けることを推奨</div>}
           {(cp.goods.length>0||cp.bads.length>0)&&<div style={{...S.cpBox,marginTop:6}}><div style={{fontWeight:700,fontSize:12,marginBottom:6}}>🌿 隣の畝との相性</div>{cp.goods.map((g,i)=><div key={i} style={{fontSize:12,marginBottom:3}}>✅ <b>{g.veggie}</b> — {g.reason}</div>)}{cp.bads.map((b,i)=><div key={i} style={{fontSize:12,marginBottom:3}}>❌ <b>{b.veggie}</b> — {b.reason}</div>)}</div>}
-          {sow&&<div style={{...S.sowBox,marginTop:6}}>🌍 {zoneObj?.label}：播種・定植の目安 <b>{sow[0]}月〜{sow[1]}月</b></div>}
+          {sow&&<div style={{...S.sowBox,marginTop:6}}>🌍 {zoneObj?.label}：播種・定植の目安 <b>{sow.map(p=>p[0]+"〜"+p[1]+"月").join(" / ")}</b></div>}
           <Label>植え方</Label>
           <div style={{display:"flex",gap:8}}>
             {[["sd","🌰 種から",canS,v.sd],["ld","🌿 苗から",canL,v.ld]].map(([t,lbl,ok,days])=><button key={t} style={{...S.ftBtn,...(form.ft===t?S.ftBtnOn:{}),opacity:ok?1:0.4}} onClick={()=>ok&&setForm(f=>({...f,ft:t}))}>{lbl}<span style={{fontSize:10,color:"#999",fontWeight:400,display:"block"}}>{days!=null?days+"日":"非対応"}</span></button>)}
           </div>
           {form.veggie==="その他"&&<><Label>収穫までの日数</Label><input style={S.input} type="number" placeholder="例:60" value={form.cd} onChange={e=>setForm(f=>({...f,cd:e.target.value}))}/></>}
           <Label>植えた日</Label><input style={S.input} type="date" value={form.pd} onChange={e=>setForm(f=>({...f,pd:e.target.value}))}/>
-          {est&&<div style={S.estBox}>🗓 収穫予定：<b>{est}</b></div>}
+          {est&&<div style={S.estBox}>🗓 収穫目安：<b>{fmtDate(est)}</b></div>}
           <Label>実際の収穫日</Label><input style={S.input} type="date" value={form.harv} onChange={e=>setForm(f=>({...f,harv:e.target.value}))}/>
+          <Label>撤去日（入力すると空き畝になります）</Label>
+          <input style={S.input} type="date" value={form.remov||""} onChange={e=>setForm(f=>({...f,remov:e.target.value}))}/>
+          {form.remov&&<div style={{background:"#fff3e0",border:"1.5px solid #ffb74d",borderRadius:10,padding:"8px 12px",fontSize:12,color:"#e65100",marginTop:4}}>⚠️ 保存すると空き畝になり履歴に移動します</div>}
           <Label>メモ</Label><textarea style={{...S.input,height:64,resize:"none"}} value={form.memo} onChange={e=>setForm(f=>({...f,memo:e.target.value}))}/>
           <Label>写真（最大5枚）</Label><MultiPhotoPicker photos={form.photos||[]} onChange={photos=>setForm(f=>({...f,photos}))}/>
         </>}
         <div style={{height:80}}/>{/* 固定ボタン分のスペース */}
-        {(curBed.hist||[]).length>0&&<div style={{marginTop:20}}><div style={{fontSize:13,fontWeight:700,color:"#666",borderTop:"1px solid #eee",paddingTop:12,marginBottom:8}}>📜 作付け履歴</div>{curBed.hist.map((h,i)=><div key={i} style={{display:"flex",gap:8,padding:"8px 0",borderBottom:i<curBed.hist.length-1?"1px solid #f5f0ea":"none"}}><div style={{width:10,height:10,borderRadius:"50%",background:getColor(h.veggie),flexShrink:0,marginTop:3}}/><div><div style={{fontWeight:700,fontSize:13,color:"#2d4a1e"}}>{h.veggie} <span style={{fontSize:11,fontWeight:400,color:"#aaa"}}>{h.ft==="sd"?"🌰":"🌿"}</span></div><div style={{fontSize:11,color:"#999"}}>🌱{h.pd}{h.harv?" ✅"+h.harv:""}</div>{h.memo&&<div style={{fontSize:11,color:"#bbb",fontStyle:"italic"}}>📝{h.memo}</div>}</div></div>)}</div>}
+        {(curBed.hist||[]).length>0&&<div style={{marginTop:20}}><div style={{fontSize:13,fontWeight:700,color:"#666",borderTop:"1px solid #eee",paddingTop:12,marginBottom:8}}>📜 作付け履歴</div>{curBed.hist.map((h,i)=><div key={i} style={{display:"flex",gap:8,padding:"8px 0",borderBottom:i<curBed.hist.length-1?"1px solid #f5f0ea":"none"}}><div style={{width:10,height:10,borderRadius:"50%",background:getColor(h.veggie),flexShrink:0,marginTop:3}}/><div><div style={{fontWeight:700,fontSize:13,color:"#2d4a1e"}}>{h.veggie} <span style={{fontSize:11,fontWeight:400,color:"#aaa"}}>{h.ft==="sd"?"🌰":"🌿"}</span></div><div style={{fontSize:11,color:"#999"}}>🌱{fmtDate(h.pd)}{h.harv?" ✅"+h.harv:""}</div>{h.memo&&<div style={{fontSize:11,color:"#bbb",fontStyle:"italic"}}>📝{h.memo}</div>}</div></div>)}</div>}
       <div style={{position:"fixed",bottom:0,left:0,right:0,padding:"12px 16px 32px",background:"white",borderTop:"1px solid #eee",zIndex:50,maxWidth:390,margin:"0 auto"}}>
         <button style={{...S.btnP,marginTop:0,marginBottom:0}} onClick={saveBed}>保存する</button>
       </div>
@@ -378,8 +459,62 @@ export default function App(){
     );
   }
 
+  if(screen==="gantt"&&curField)return(
+    <Shell title="野菜別栽培期間" back={()=>setScreen("field")}>
+      <GanttChart field={curField}/>
+    </Shell>
+  );
+
   if(screen==="addField")return(<AddField onAdd={addField} onBack={()=>setScreen("home")}/>);
   return null;
+}
+
+
+// ── バックアップコードセクション ──────────────────────────────
+function BackupCodeSection({onRestore}){
+  const[show,setShow]=useState(false);
+  const[restoreMode,setRestoreMode]=useState(false);
+  const[inputCode,setInputCode]=useState("");
+  const code=getBackupCode();
+
+  function copyCode(){
+    navigator.clipboard?.writeText(code).then(()=>alert("コピーしました！")).catch(()=>alert(code));
+  }
+
+  return(
+    <div style={{background:"white",borderRadius:14,padding:"12px 14px",marginBottom:14,border:"1.5px solid #f0ede8",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{fontSize:13,fontWeight:700,color:"#2d4a1e"}}>🔑 バックアップコード</span>
+        <button style={{background:"none",border:"none",fontSize:12,color:"#5a8a3c",cursor:"pointer",fontWeight:600}} onClick={()=>setShow(!show)}>
+          {show?"隠す":"表示"}
+        </button>
+      </div>
+      {show&&(
+        <div style={{marginTop:10}}>
+          <div style={{background:"#f5f5f0",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <span style={{fontSize:16,fontWeight:700,letterSpacing:2,color:"#2d4a1e"}}>{code}</span>
+            <button onClick={copyCode} style={{background:"#e8f5e0",border:"1px solid #b5d5a0",borderRadius:8,padding:"4px 10px",fontSize:12,color:"#2d6a20",cursor:"pointer"}}>📋 コピー</button>
+          </div>
+          <div style={{fontSize:11,color:"#aaa",marginBottom:10,lineHeight:1.6}}>
+            機種変更時にこのコードを入力するとデータを復元できます。大切に保管してください。
+          </div>
+          {!restoreMode?(
+            <button style={{fontSize:12,color:"#4a7fa5",background:"none",border:"1px solid #a8cfea",borderRadius:8,padding:"6px 12px",cursor:"pointer",width:"100%"}} onClick={()=>setRestoreMode(true)}>
+              📲 コードを入力してデータを復元する
+            </button>
+          ):(
+            <div>
+              <input style={{...S.input,marginBottom:8,letterSpacing:2,fontSize:14}} placeholder="HATAKE-XXXXXXXX" value={inputCode} onChange={e=>setInputCode(e.target.value.toUpperCase())}/>
+              <div style={{display:"flex",gap:8}}>
+                <button style={{flex:1,background:"linear-gradient(135deg,#5a8a3c,#7ab55a)",color:"white",border:"none",borderRadius:10,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}} onClick={()=>onRestore(inputCode)}>復元する</button>
+                <button style={{flex:1,background:"white",border:"1px solid #ddd",borderRadius:10,padding:"10px",fontSize:13,color:"#888",cursor:"pointer"}} onClick={()=>setRestoreMode(false)}>キャンセル</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function AddField({onAdd,onBack}){
@@ -406,16 +541,17 @@ function BedPopup({bed,field,zone,zoneObj,onEdit,onCopy,onClose,onEditGroup}){
                 ))}
               </div>
             )}
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}><span style={{...S.chip,color:st.color,background:st.bg}}>{st.label}</span><span style={{...S.chip,color:"#555",background:"#f0f0ec"}}>{bed.ft==="sd"?"🌰 種":"🌿 苗"}</span>{sow&&<span style={{...S.chip,color:"#2471a3",background:"#e8f3fb"}}>📅 {sow[0]}〜{sow[1]}月</span>}</div>
-      <div style={{background:"#f8f8f5",borderRadius:10,padding:"10px 12px",marginBottom:10}}>{bed.pd&&<div style={{fontSize:13,color:"#555",marginBottom:4}}>🌱 植えた日：<b>{bed.pd}</b></div>}{bed.est&&<div style={{fontSize:13,color:"#3a6e20",marginBottom:4}}>🗓 収穫予定：<b>{bed.est}</b></div>}{bed.harv&&<div style={{fontSize:13,color:"#6d9e6a"}}>✅ 収穫日：<b>{bed.harv}</b></div>}</div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}><span style={{...S.chip,color:st.color,background:st.bg}}>{st.label}</span><span style={{...S.chip,color:"#555",background:"#f0f0ec"}}>{bed.ft==="sd"?"🌰 種":"🌿 苗"}</span>{sow&&<span style={{...S.chip,color:"#2471a3",background:"#e8f3fb"}}>📅 {sow.map(p=>p[0]+"〜"+p[1]+"月").join(" / ")}</span>}</div>
+      <div style={{background:"#f8f8f5",borderRadius:10,padding:"10px 12px",marginBottom:10}}>{bed.pd&&<div style={{fontSize:13,color:"#555",marginBottom:4}}>🌱 植えた日：<b>{fmtDate(bed.pd)}</b></div>}{bed.est&&<div style={{fontSize:13,color:"#3a6e20",marginBottom:4}}>🗓 収穫目安：<b>{fmtDate(bed.est)}</b></div>}{bed.harv&&<div style={{fontSize:13,color:"#6d9e6a",marginBottom:bed.remov?4:0}}>✅ 収穫日：<b>{fmtDate(bed.harv)}</b></div>}
+              {bed.remov&&<div style={{fontSize:13,color:"#888"}}>🗑 撤去日：<b>{fmtDate(bed.remov)}</b></div>}</div>
       {bed.memo&&<div style={{fontSize:13,color:"#555",marginBottom:10,padding:"8px 12px",background:"#fffbf0",borderRadius:8,border:"1px solid #f0e8c0"}}>📝 {bed.memo}</div>}
       {warn&&<div style={{...S.warnBox,marginBottom:10}}>⚠️ <b>{warn.family}</b> {warn.ago}年前に作付け／あと約{(warn.need-parseFloat(warn.ago)).toFixed(1)}年空けるとよい</div>}
       {(cp.goods.length>0||cp.bads.length>0)&&<div style={{...S.cpBox,marginBottom:10}}><div style={{fontWeight:700,fontSize:12,marginBottom:6}}>🌿 隣の畝との相性</div>{cp.goods.map((g,i)=><div key={i} style={{fontSize:12,marginBottom:3}}>✅ <b>{g.veggie}</b> — {g.reason}</div>)}{cp.bads.map((b,i)=><div key={i} style={{fontSize:12,marginBottom:3}}>❌ <b>{b.veggie}</b> — {b.reason}</div>)}</div>}
-      {(bed.hist||[]).length>0&&<div style={{marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:"#666",marginBottom:6}}>📜 作付け履歴</div>{bed.hist.map((h,i)=><div key={i} style={{display:"flex",gap:8,padding:"6px 0",borderBottom:i<bed.hist.length-1?"1px solid #f0ede8":"none"}}><div style={{width:8,height:8,borderRadius:"50%",background:getColor(h.veggie),flexShrink:0,marginTop:4}}/><div><div style={{fontSize:12,fontWeight:700,color:"#2d4a1e"}}>{h.veggie} <span style={{fontWeight:400,color:"#aaa"}}>{h.ft==="sd"?"🌰":"🌿"}</span></div><div style={{fontSize:11,color:"#999"}}>🌱{h.pd}{h.harv?" ✅"+h.harv:""}</div></div></div>)}</div>}
+      {(bed.hist||[]).length>0&&<div style={{marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:"#666",marginBottom:6}}>📜 作付け履歴</div>{bed.hist.map((h,i)=><div key={i} style={{display:"flex",gap:8,padding:"6px 0",borderBottom:i<bed.hist.length-1?"1px solid #f0ede8":"none"}}><div style={{width:8,height:8,borderRadius:"50%",background:getColor(h.veggie),flexShrink:0,marginTop:4}}/><div><div style={{fontSize:12,fontWeight:700,color:"#2d4a1e"}}>{h.veggie} <span style={{fontWeight:400,color:"#aaa"}}>{h.ft==="sd"?"🌰":"🌿"}</span></div><div style={{fontSize:11,color:"#999"}}>🌱{fmtDate(h.pd)}{h.harv?" ✅"+h.harv:""}</div></div></div>)}</div>}
     </>}
-    <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
-      <button style={{...S.btnP,flex:1,marginTop:0,minWidth:120}} onClick={onEdit}>{isEmpty?"🌱 野菜を登録":"✏️ 個別編集"}</button>
-      {!isEmpty&&<button style={{flex:1,minWidth:120,background:"#e8f5e0",border:"1.5px solid #b5d5a0",borderRadius:14,padding:"14px",fontSize:14,fontWeight:700,color:"#2d6a20",cursor:"pointer"}} onClick={onCopy}>📋 コピー</button>}
+    <div style={{display:"flex",gap:8,marginTop:4}}>
+      <button style={{...S.btnP,flex:1,marginTop:0,marginBottom:0,width:"auto"}} onClick={onEdit}>{isEmpty?"🌱 野菜を登録":"✏️ 個別編集"}</button>
+      {!isEmpty&&<button style={{flex:1,background:"#e8f5e0",border:"1.5px solid #b5d5a0",borderRadius:14,padding:"14px",fontSize:14,fontWeight:700,color:"#2d6a20",cursor:"pointer"}} onClick={onCopy}>📋 コピー</button>}
     </div>
     {isGroup&&<button style={{...S.btnP,marginTop:8,background:"linear-gradient(135deg,#3a6a8a,#5a9ab5)"}} onClick={()=>onEditGroup(group)}>🌿 グループ全体を編集（{group.length}畝）</button>}
 
@@ -426,10 +562,16 @@ function BedPopup({bed,field,zone,zoneObj,onEdit,onCopy,onClose,onEditGroup}){
 // ── グループ編集ポップアップ ─────────────────────────────────
 function GroupEditPopup({group,field,onSave,onClose}){
   const bed=group[0];
-  const[harv,setHarv]=useState(bed.harv||"");
-  const[memo,setMemo]=useState(bed.memo||"");
-  const allHarvested=group.every(b=>b.harv);
-  const st=getStatus(bed);
+  const[selected,setSelected]=useState(new Set(group.map(b=>b.id)));
+  const[harv,setHarv]=useState("");
+  const[remov,setRemov]=useState("");
+  const[memo,setMemo]=useState("");
+
+  function toggleBed(id){
+    setSelected(prev=>{const next=new Set(prev);next.has(id)?next.delete(id):next.add(id);return next;});
+  }
+  const targetBeds=group.filter(b=>selected.has(b.id));
+
   return(
     <div style={S.overlay} onClick={onClose}>
       <div style={S.popup} onClick={e=>e.stopPropagation()}>
@@ -437,33 +579,43 @@ function GroupEditPopup({group,field,onSave,onClose}){
           <div style={{width:36,height:36,borderRadius:10,background:getColor(bed.veggie),flexShrink:0}}/>
           <div style={{flex:1}}>
             <div style={{fontWeight:700,fontSize:17,color:"#2d4a1e"}}>{bed.veggie}</div>
-            <div style={{fontSize:12,color:"#aaa"}}>🌿 {group.length}畝グループ — 🌱 {bed.pd}</div>
+            <div style={{fontSize:12,color:"#aaa"}}>🌿 {group.length}畝グループ — 🌱 {fmtDate(bed.pd)}</div>
           </div>
           <button onClick={onClose} style={{background:"none",border:"none",fontSize:22,color:"#aaa",cursor:"pointer",lineHeight:1}}>✕</button>
         </div>
-        {/* グループ内の畝一覧 */}
-        <div style={{background:"#f8f8f5",borderRadius:10,padding:"10px 12px",marginBottom:12}}>
-          <div style={{fontSize:12,fontWeight:600,color:"#666",marginBottom:6}}>グループの畝</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-            {group.map((b,i)=>(
-              <span key={i} style={{fontSize:11,background:getColor(b.veggie),color:"#2d3a2e",borderRadius:6,padding:"2px 8px"}}>
-                {b.row+1}列{b.col+1}番
-              </span>
-            ))}
+        {/* 畝の選択 */}
+        <div style={{background:"#f8f8f5",borderRadius:10,padding:"10px 12px",marginBottom:10}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#666",marginBottom:8}}>適用する畝を選択（タップで切替）</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {group.map((b,i)=>{
+              const isSel=selected.has(b.id);
+              return(
+                <button key={i} onClick={()=>toggleBed(b.id)} style={{fontSize:12,borderRadius:8,padding:"5px 12px",cursor:"pointer",fontWeight:600,border:"1.5px solid",borderColor:isSel?"rgba(0,0,0,0.12)":"#ddd",background:isSel?getColor(b.veggie):"#eee",color:isSel?"#2d3a2e":"#aaa"}}>
+                  {b.row+1}列{b.col+1}番
+                </button>
+              );
+            })}
           </div>
+          <div style={{fontSize:11,color:"#aaa",marginTop:6}}>{targetBeds.length}/{group.length}畝が選択中</div>
         </div>
-        {/* 一括収穫記録 */}
-        <div style={{marginBottom:12}}>
-          <div style={{fontSize:12,fontWeight:600,color:"#666",marginBottom:4}}>✅ 収穫日（全畝に適用）</div>
+        {/* 収穫日 */}
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#666",marginBottom:4}}>収穫日</div>
           <input style={S.input} type="date" value={harv} onChange={e=>setHarv(e.target.value)}/>
         </div>
-        {/* 一括メモ */}
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:12,fontWeight:600,color:"#666",marginBottom:4}}>📝 メモ（全畝に適用）</div>
-          <textarea style={{...S.input,height:64,resize:"none"}} value={memo} onChange={e=>setMemo(e.target.value)} placeholder="例：豊作でした！"/>
+        {/* 撤去日 */}
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#666",marginBottom:4}}>撤去日（入力すると空き畝に）</div>
+          <input style={S.input} type="date" value={remov} onChange={e=>setRemov(e.target.value)}/>
+          {remov&&<div style={{fontSize:11,color:"#e65100",marginTop:4}}>⚠️ 選択中の畝が空き畝になります</div>}
         </div>
-        <button style={{...S.btnP,marginTop:0}} onClick={()=>onSave(group,{harv,memo})}>
-          🌿 {group.length}畝まとめて保存
+        {/* メモ */}
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#666",marginBottom:4}}>メモ</div>
+          <textarea style={{...S.input,height:56,resize:"none"}} value={memo} onChange={e=>setMemo(e.target.value)} placeholder="例：豊作でした！"/>
+        </div>
+        <button style={{...S.btnP,marginTop:0}} disabled={targetBeds.length===0} onClick={()=>onSave(targetBeds,{harv,remov,memo})}>
+          🌿 {targetBeds.length}畝に適用して保存
         </button>
       </div>
     </div>
@@ -483,6 +635,14 @@ function FieldMap({field,copied,onBedTap,onBedLongPress,onBedSwipePaste,onVGap,o
   const rowY=[];rowY[0]=0;
   for(let r=0;r<R;r++){rowY[r+1]=rowY[r]+W+P;}
   const totalW=colX[C],totalH=rowY[R];
+
+  // 空き畝の連作障害チェック
+  function getRotAlert(bed) {
+    if (bed.veggie !== "空き") return null;
+    const avoid = getAvoid(bed.hist||[]);
+    if (avoid.length === 0) return null;
+    return avoid[0]; // 最も注意が必要な科を返す
+  }
 
   function joined(r1,c1,r2,c2){
     if(copied)return false;
@@ -569,11 +729,12 @@ function FieldMap({field,copied,onBedTap,onBedLongPress,onBedSwipePaste,onVGap,o
           display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
           boxShadow:(jU||jD||jL||jR)?"none":isH?"0 0 5px rgba(192,57,43,0.2)":"0 1px 3px rgba(0,0,0,0.08)",
         }}>
-          {(isPaste||isH||isD||warn)&&<div style={{position:"absolute",top:2,right:2,background:isPaste?"#5a8a3c":isH?"#c0392b":isD?"#6d9e6a":"#e67e22",color:"white",borderRadius:4,fontSize:8,fontWeight:700,padding:"1px 3px"}}>{isPaste?"📋":isH?"!":isD?"✓":"⚠"}</div>}
+          {(isPaste||isH||isD||warn)&&<div style={{position:"absolute",top:1,right:1,background:isPaste?"#5a8a3c":isH?"#c0392b":isD?"#6d9e6a":"#e67e22",color:"white",borderRadius:4,fontSize:8,fontWeight:700,padding:"1px 3px"}}>{isPaste?"📋":isH?"!":isD?"✓":"⚠"}</div>}
+      {isEmpty&&!isPaste&&(()=>{const ra=getRotAlert(bed);return ra?<div style={{position:"absolute",bottom:1,right:1,background:"#e67e22",color:"white",borderRadius:4,fontSize:7,fontWeight:700,padding:"1px 3px"}}>連</div>:null;})()}
           <div style={{fontSize:isEmpty?16:9,fontWeight:700,color:isEmpty?(isPaste?"#2d6a20":"#ccc"):"#2d3a2e",textAlign:"center",lineHeight:1.2,pointerEvents:"none"}}>
             {isEmpty?(isPaste?"貼付":"＋"):bed.veggie}
           </div>
-          {!isEmpty&&<div style={{fontSize:7,color:"rgba(0,0,0,0.4)",marginTop:1,textAlign:"center",pointerEvents:"none"}}>{bed.ft==="sd"?"🌰":"🌿"}{bed.pd?bed.pd.slice(5):""}{hasHist?" 📜":""}</div>}
+          {!isEmpty&&hasHist&&<div style={{fontSize:7,color:"rgba(0,0,0,0.4)",marginTop:1,textAlign:"center",pointerEvents:"none"}}>📜</div>}
         </div>
       );
 
@@ -628,11 +789,11 @@ function FieldMap({field,copied,onBedTap,onBedLongPress,onBedSwipePaste,onVGap,o
   return(
     <div onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}
       style={{overflowX:"auto",WebkitUserSelect:"none",userSelect:"none",touchAction:copied?"none":"pan-y pinch-zoom",paddingBottom:4}}>
-      <div style={{textAlign:"center",fontSize:11,color:"#aaa",marginBottom:4}}>↑ 北</div>
+
       <div ref={containerRef} style={{position:"relative",width:totalW,height:totalH,margin:"0 auto"}}>
         {cells}
       </div>
-      <div style={{textAlign:"center",fontSize:11,color:"#aaa",marginTop:4}}>↓ 南</div>
+
     </div>
   );
 }
@@ -701,6 +862,135 @@ function Shell({title,sub,back,right,children}){
 function Label({children}){return(<div style={{fontSize:12,fontWeight:600,color:"#666",marginTop:12,marginBottom:4}}>{children}</div>);}
 function Chip({l,c,bg}){return(<span style={{fontSize:11,fontWeight:700,borderRadius:10,padding:"2px 9px",color:c,background:bg}}>{l}</span>);}
 function Empty({text}){return(<div style={{textAlign:"center",paddingTop:60}}><div style={{fontSize:48}}>🌿</div><div style={{color:"#aaa",marginTop:8}}>{text}</div></div>);}
+
+// ── 野菜別栽培期間グラフ ────────────────────────────────────
+function GanttChart({field}){
+  const allEntries=[];
+  field.beds.forEach(b=>{
+    if(b.veggie!=="空き"&&b.pd) allEntries.push({veggie:b.veggie,pd:b.pd,harv:b.harv,est:b.est,remov:b.remov,current:true});
+    (b.hist||[]).forEach(h=>{ if(h.pd) allEntries.push({...h,current:false}); });
+  });
+  if(allEntries.length===0) return(<div style={{textAlign:"center",color:"#ccc",padding:24}}>栽培データがありません</div>);
+
+  // 野菜ごとにグループ化 → 重複期間をマージして1本のバーに
+  const groups={};
+  allEntries.forEach(e=>{
+    if(!groups[e.veggie]) groups[e.veggie]=[];
+    groups[e.veggie].push(e);
+  });
+
+  // 同じ野菜の期間が重なる場合はマージして1バーに
+  function mergePeriods(entries){
+    // 各エントリを期間に変換
+    const periods=entries.map(e=>({
+      start:new Date(e.pd),
+      end:new Date(e.harv||e.remov||e.est||e.pd),
+      current:e.current,
+    })).sort((a,b)=>a.start-b.start);
+
+    const merged=[];
+    for(const p of periods){
+      const last=merged[merged.length-1];
+      if(last&&p.start<=last.end){
+        // 重なっている→マージ
+        last.end=new Date(Math.max(last.end,p.end));
+        last.current=last.current||p.current;
+      } else {
+        merged.push({...p});
+      }
+    }
+    return merged;
+  }
+
+  const vegNames=Object.keys(groups).sort();
+  const ROW_H=32; // 均等な行高さ
+
+  const allDates=allEntries.flatMap(e=>[e.pd,e.harv,e.est,e.remov].filter(Boolean));
+  if(allDates.length===0) return null;
+  const minD=new Date(Math.min(...allDates.map(d=>new Date(d))));
+  const maxD=new Date(Math.max(...allDates.map(d=>new Date(d))));
+  minD.setMonth(0);minD.setDate(1);
+  maxD.setDate(maxD.getDate()+60);
+  const range=maxD-minD;
+  const pct=d=>Math.max(0,Math.min(100,(d-minD)/range*100));
+
+  // 年と月
+  const years=[],months=[];
+  const yc=new Date(minD);
+  while(yc<=maxD){years.push({label:yc.getFullYear()+"",p:(yc-minD)/range*100});yc.setFullYear(yc.getFullYear()+1);}
+  const mc=new Date(minD);mc.setDate(1);
+  while(mc<=maxD){months.push({label:(mc.getMonth()+1)+"",p:(mc-minD)/range*100,isJan:mc.getMonth()===0});mc.setMonth(mc.getMonth()+1);}
+
+  const todayP=pct(new Date());
+  const LABEL_W=70;
+  const CHART_W=Math.max(400,(range/(1000*60*60*24))*1);
+
+  return(
+    <div style={{position:"relative",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      <div style={{minWidth:LABEL_W+CHART_W}}>
+        {/* ヘッダー */}
+        <div style={{display:"flex",position:"sticky",top:0,background:"white",zIndex:10,paddingBottom:2,borderBottom:"2px solid #eee"}}>
+          <div style={{width:LABEL_W,flexShrink:0,background:"white",zIndex:11}}/>
+          <div style={{flex:1,position:"relative",height:32}}>
+            {years.map((y,i)=><div key={"y"+i} style={{position:"absolute",left:y.p+"%",top:0,fontSize:12,color:"#333",fontWeight:700,whiteSpace:"nowrap",paddingLeft:4}}>{y.label}</div>)}
+            {months.map((m,i)=>!m.isJan&&<div key={"m"+i} style={{position:"absolute",left:m.p+"%",top:16,fontSize:10,color:"#aaa",transform:"translateX(-50%)",whiteSpace:"nowrap"}}>{m.label}</div>)}
+          </div>
+        </div>
+
+        {/* チャート本体 */}
+        <div style={{display:"flex"}}>
+          {/* 野菜名列（左固定・均等行高さ） */}
+          <div style={{width:LABEL_W,flexShrink:0,position:"sticky",left:0,background:"white",zIndex:5}}>
+            {vegNames.map(name=>(
+              <div key={name} style={{height:ROW_H+6,display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:6}}>
+                <span style={{fontSize:11,color:"#333",fontWeight:700,textAlign:"right",lineHeight:1.2,wordBreak:"keep-all",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:LABEL_W-4}}>{name}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* グラフエリア */}
+          <div style={{flex:1,position:"relative"}}>
+            {/* 年境界線 */}
+            {years.map((y,i)=>i>0&&<div key={"yl"+i} style={{position:"absolute",left:y.p+"%",top:0,bottom:0,width:2,background:"#888",zIndex:2}}/>)}
+            {/* 月グリッド */}
+            {months.map((m,i)=>!m.isJan&&<div key={"ml"+i} style={{position:"absolute",left:m.p+"%",top:0,bottom:0,width:1,background:"rgba(0,0,0,0.05)",zIndex:1}}/>)}
+            {/* 今日の線 */}
+            <div style={{position:"absolute",left:todayP+"%",top:0,bottom:0,width:2,background:"#c0392b",zIndex:4,opacity:0.8}}/>
+
+            {/* 野菜ごとの行（均等高さ・マージ済みバー） */}
+            {vegNames.map(name=>{
+              const merged=mergePeriods(groups[name]);
+              const hasCurrent=groups[name].some(e=>e.current);
+              return(
+                <div key={name} style={{height:ROW_H+6,position:"relative"}}>
+                  <div style={{position:"absolute",top:3,left:0,right:0,height:ROW_H,background:"#f8f8f5",borderRadius:4}}/>
+                  {merged.map((m,i)=>{
+                    const sp=pct(m.start);
+                    const ep=pct(m.end);
+                    const w=Math.max(0.5,ep-sp);
+                    const color=m.current?getColor(name):"#d0d0d0";
+                    const barH=22;
+                    const barTop=3+(ROW_H-barH)/2;
+                    return(
+                      <div key={i} style={{position:"absolute",left:sp+"%",width:w+"%",height:barH,top:barTop,background:color,borderRadius:5,border:"1px solid rgba(0,0,0,0.08)",minWidth:4,zIndex:3}}/>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 凡例 */}
+        <div style={{display:"flex",gap:16,marginTop:10,marginLeft:LABEL_W,flexWrap:"wrap"}}>
+          <span style={{fontSize:11,color:"#aaa"}}>■ 過去の履歴</span>
+          <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:3,height:14,background:"#c0392b",borderRadius:1}}/><span style={{fontSize:11,color:"#c0392b"}}>今日</span></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Legend(){return(<div style={{marginTop:10}}><div style={{display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center"}}><Chip l="生育中" c="#4a7fa5" bg="#e8f2f8"/><Chip l="収穫時期！" c="#c0392b" bg="#fdecea"/><Chip l="収穫済" c="#6d9e6a" bg="#eaf4e8"/><Chip l="連作注意" c="#e67e22" bg="#fef0e0"/></div><div style={{textAlign:"center",fontSize:11,color:"#aaa",marginTop:6}}>🌰種　🌿苗　📜履歴</div></div>);}
 
 const S={
